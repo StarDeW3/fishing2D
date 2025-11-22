@@ -63,11 +63,8 @@ public class DayNightCycle : MonoBehaviour
         // Progress time
         currentTime += (24f / dayDuration) * Time.deltaTime;
         
-        // Wrap time around 24 hours
-        if (currentTime >= 24f)
-        {
-            currentTime = 0f;
-        }
+        // Wrap time around 24 hours using modulo for consistency
+        currentTime = currentTime % 24f;
         
         // Update sun and moon positions
         UpdateCelestialBodies();
