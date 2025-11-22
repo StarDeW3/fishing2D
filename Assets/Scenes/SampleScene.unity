@@ -434,6 +434,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1234567895}
   - component: {fileID: 1234567896}
+  - component: {fileID: 1234567900}
   m_Layer: 0
   m_Name: Sun
   m_TagString: Untagged
@@ -508,6 +509,21 @@ SpriteRenderer:
   m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &1234567900
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1234567894}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minIntensity: 0.9
+  maxIntensity: 1.1
+  pulseSpeed: 2
 --- !u!1 &1234567897
 GameObject:
   m_ObjectHideFlags: 0
@@ -518,6 +534,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1234567898}
   - component: {fileID: 1234567899}
+  - component: {fileID: 1234567901}
   m_Layer: 0
   m_Name: Moon
   m_TagString: Untagged
@@ -592,3 +609,18 @@ SpriteRenderer:
   m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &1234567901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1234567897}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minIntensity: 0.85
+  maxIntensity: 1.15
+  pulseSpeed: 1.5
