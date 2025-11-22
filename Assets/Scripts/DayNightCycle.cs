@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 /// <summary>
 /// Manages the day-night cycle with realistic sun and moon positioning
@@ -29,7 +30,7 @@ public class DayNightCycle : MonoBehaviour
     
     [Header("Light Settings")]
     [Tooltip("Global ışık / Global light component")]
-    [SerializeField] private UnityEngine.Rendering.Universal.Light2D globalLight;
+    [SerializeField] private Light2D globalLight;
     
     [Tooltip("Gündüz ışık yoğunluğu / Day light intensity")]
     [SerializeField] private float dayLightIntensity = 1f;

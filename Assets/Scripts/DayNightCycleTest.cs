@@ -35,8 +35,8 @@ public class DayNightCycleTest : MonoBehaviour
         dayNightCycle.SetCurrentTime(18f);
         Debug.Log($"Set time to 18:00 (sunset) - Is Nighttime: {dayNightCycle.IsNighttime()}");
         
-        dayNightCycle.SetCurrentTime(24f);
-        Debug.Log($"Set time to 24:00 (midnight) - Is Nighttime: {dayNightCycle.IsNighttime()}");
+        dayNightCycle.SetCurrentTime(0f);
+        Debug.Log($"Set time to 0:00 (midnight) - Is Nighttime: {dayNightCycle.IsNighttime()}");
         
         // Test 2: Day/Night detection
         Debug.Log("\nTest 2: Day/Night Detection");
