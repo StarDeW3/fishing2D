@@ -175,7 +175,9 @@ public class DayNightCycle : MonoBehaviour
     /// </summary>
     public void SetCurrentTime(float time)
     {
-        currentTime = Mathf.Clamp(time, 0f, 24f);
+        // Use modulo to wrap time around 24 hours
+        currentTime = time % 24f;
+        if (currentTime < 0f) currentTime += 24f; // Handle negative values
         UpdateCelestialBodies();
         UpdateLighting();
     }

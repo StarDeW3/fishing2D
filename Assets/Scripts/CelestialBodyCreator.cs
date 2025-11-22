@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// Creates simple celestial body sprites for sun and moon
@@ -14,10 +15,26 @@ public class CelestialBodyCreator : MonoBehaviour
     [SerializeField] private Color moonColor = new Color(0.9f, 0.9f, 1f);
     [SerializeField] private float moonSize = 0.6f;
     
+    // Store created textures for proper cleanup
+    private List<Texture2D> createdTextures = new List<Texture2D>();
+    
     void Start()
     {
         CreateCelestialSprite("Sun", sunColor, sunSize);
         CreateCelestialSprite("Moon", moonColor, moonSize);
+    }
+    
+    void OnDestroy()
+    {
+        // Clean up created textures to prevent memory leaks
+        foreach (Texture2D texture in createdTextures)
+        {
+            if (texture != null)
+            {
+                Destroy(texture);
+            }
+        }
+        createdTextures.Clear();
     }
     
     private void CreateCelestialSprite(string name, Color color, float size)
@@ -50,6 +67,7 @@ public class CelestialBodyCreator : MonoBehaviour
     {
         // Create a circular texture
         Texture2D texture = new Texture2D(resolution, resolution);
+        createdTextures.Add(texture); // Track for cleanup
         Color[] pixels = new Color[resolution * resolution];
         
         Vector2 center = new Vector2(resolution / 2f, resolution / 2f);
