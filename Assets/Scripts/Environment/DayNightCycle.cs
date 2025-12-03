@@ -37,6 +37,7 @@ public class DayNightCycle : MonoBehaviour
     private Vector3 initialSunScale = Vector3.one;
     private Vector3 initialMoonScale = Vector3.one;
     private WaveManager waveManager;
+    private float waveManagerCheckTimer = 0f;
 
     void Start()
     {
@@ -65,54 +66,50 @@ public class DayNightCycle : MonoBehaviour
             if (timeOfDay >= 1f) timeOfDay -= 1f;
         }
 
+        UpdateSkyAndLight();
+        UpdateWaterAndCelestialBodies();
+    }
+
+    void UpdateSkyAndLight()
+    {
         // Gökyüzü rengini güncelle
         if (mainCamera != null)
         {
             mainCamera.backgroundColor = skyColor.Evaluate(timeOfDay);
         }
         
-        // Ortam ışığını güncelle (Global Light yoksa bile sahne ışığını etkiler)
+        // Ortam ışığını güncelle
         if (ambientLightColor != null)
         {
             RenderSettings.ambientLight = ambientLightColor.Evaluate(timeOfDay);
         }
+    }
 
+    void UpdateWaterAndCelestialBodies()
+    {
         // Kamera ve Zoom bilgileri
         Vector3 cameraPos = (mainCamera != null) ? mainCamera.transform.position : transform.position;
         float zoomFactor = (mainCamera != null) ? mainCamera.orthographicSize / referenceCameraSize : 1f;
         
-        // WaveManager referansını güncelle ve renkleri ayarla
-        if (waveManager == null) waveManager = WaveManager.instance;
+        // WaveManager referansını güncelle (Performans için zamanlayıcı ile)
+        if (waveManager == null)
+        {
+            waveManagerCheckTimer -= Time.deltaTime;
+            if (waveManagerCheckTimer <= 0)
+            {
+                waveManager = WaveManager.instance;
+                waveManagerCheckTimer = 1f; // Her saniye kontrol et
+            }
+        }
         
         float waterLevel = waterSurfaceY;
         if (waveManager != null)
         {
             waterLevel = waveManager.transform.position.y + waveManager.offset;
-            
-            if (controlWaterColor)
-            {
-                // Güneşin yüksekliğine veya zamana göre bir "aydınlık" faktörü hesapla
-                // 0.25 (Sabah) ve 0.75 (Akşam) arası gündüz kabul edilebilir
-                // Basit bir sinüs dalgası ile geçiş yapalım: 
-                // timeOfDay 0.25 -> Sin(0) = 0 (Hata, 0.25'te tepede olmalı)
-                // timeOfDay 0.0 = Gece, 0.5 = Öğlen
-                // Sin(timeOfDay * PI * 2 - PI/2) -> -1 (Gece) to 1 (Öğlen)
-                
-                float sunHeight = Mathf.Sin((timeOfDay * 360f - 90f) * Mathf.Deg2Rad); 
-                float lightFactor = Mathf.Clamp01((sunHeight + 1f) / 2f); // 0 ile 1 arası normalize et
-                
-                // Daha keskin bir gece/gündüz ayrımı için curve kullanılabilir ama Lerp yeterli
-                // Gece yarısı (0.0) -> sunHeight -1 -> lightFactor 0
-                // Öğlen (0.5) -> sunHeight 1 -> lightFactor 1
-                
-                waveManager.topColor = Color.Lerp(waterNightTop, waterDayTop, lightFactor);
-                waveManager.bottomColor = Color.Lerp(waterNightBottom, waterDayBottom, lightFactor);
-            }
+            UpdateWaterColor();
         }
 
-        // Yörünge Merkezi: 
-        // X: Kamerayı takip eder (Sonsuzluk hissi için)
-        // Y: Su seviyesini baz alır (Kamera dalsa bile güneş gökyüzünde kalsın diye)
+        // Yörünge Merkezi
         Vector3 orbitCenter = new Vector3(cameraPos.x, waterLevel + horizonOffset, 0f);
 
         // Yörünge Yarıçapı Hesaplama
@@ -126,6 +123,18 @@ public class DayNightCycle : MonoBehaviour
         
         UpdateCelestialBody(sun, sunRenderer, angle, initialSunScale, orbitCenter, currentOrbitRadius, zoomFactor, waterLevel);
         UpdateCelestialBody(moon, moonRenderer, angle + 180f, initialMoonScale, orbitCenter, currentOrbitRadius, zoomFactor, waterLevel);
+    }
+
+    void UpdateWaterColor()
+    {
+        if (!controlWaterColor || waveManager == null) return;
+
+        // Güneşin yüksekliğine veya zamana göre bir "aydınlık" faktörü hesapla
+        float sunHeight = Mathf.Sin((timeOfDay * 360f - 90f) * Mathf.Deg2Rad); 
+        float lightFactor = Mathf.Clamp01((sunHeight + 1f) / 2f); 
+        
+        waveManager.topColor = Color.Lerp(waterNightTop, waterDayTop, lightFactor);
+        waveManager.bottomColor = Color.Lerp(waterNightBottom, waterDayBottom, lightFactor);
     }
 
     void UpdateCelestialBody(Transform body, SpriteRenderer sr, float angleDeg, Vector3 initialScale, Vector3 orbitCenter, Vector2 currentRadius, float zoomFactor, float absoluteWaterLevel)

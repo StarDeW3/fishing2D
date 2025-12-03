@@ -16,6 +16,7 @@ public class FishingRod : MonoBehaviour
     private bool isCasting = false;
     public bool isMiniGameActive = false; // Dışarıdan erişim için
     private CameraFollow cameraFollow;
+    private WaveManager waveManager; // Cache
 
     void Start()
     {
@@ -32,6 +33,8 @@ public class FishingRod : MonoBehaviour
 
         if (Camera.main != null)
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
+            
+        waveManager = WaveManager.instance;
     }
 
     void Update()
@@ -92,8 +95,8 @@ public class FishingRod : MonoBehaviour
         float sagAmount = distance * 0.3f; 
         
         // Kanca suyun altındaysa sarkma azalır
-        // Optimize: Check instance once
-        var waveManager = WaveManager.instance;
+        if (waveManager == null) waveManager = WaveManager.instance; // Lazy load if needed
+        
         if (waveManager != null && p2.y < waveManager.GetWaveHeight(p2.x))
         {
             sagAmount *= 0.2f; 
@@ -146,7 +149,14 @@ public class FishingRod : MonoBehaviour
         if (transform.right.x < 0)
              dir.x *= -1;
 
-        hookRb.AddForce(dir * castForce, ForceMode2D.Impulse);
+        // Upgrade sisteminden güç al
+        float finalForce = castForce;
+        if (UpgradeManager.instance != null)
+        {
+            finalForce = UpgradeManager.instance.GetValue(UpgradeType.CastDistance);
+        }
+
+        hookRb.AddForce(dir * finalForce, ForceMode2D.Impulse);
 
         // Kameraya kancayı bildir
         if (cameraFollow != null) cameraFollow.secondaryTarget = currentHook.transform;
@@ -159,10 +169,10 @@ public class FishingRod : MonoBehaviour
 
         if (GameManager.instance != null)
         {
-            GameManager.instance.AddScore(fish.scoreValue);
+            GameManager.instance.AddMoney(fish.scoreValue); // Score -> Money
             
             string fishName = !string.IsNullOrEmpty(fish.fishName) ? fish.fishName : "Fish";
-            GameManager.instance.ShowFeedback(fishName + " CAUGHT!\n+" + fish.scoreValue);
+            GameManager.instance.ShowFeedback(fishName + " CAUGHT!\n+$" + fish.scoreValue);
         }
 
         if (fish != null) fish.Despawn();

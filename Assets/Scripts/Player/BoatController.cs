@@ -25,47 +25,70 @@ public class BoatController : MonoBehaviour
 
     private Rigidbody2D rb;
     private bool waveManagerMissingLogged = false;
+    private float horizontalInput;
+    private WaveManager waveManager;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        waveManager = WaveManager.instance;
+    }
+
+    void Update()
+    {
+        if (!canMove)
+        {
+            horizontalInput = 0f;
+            return;
+        }
+
+        horizontalInput = 0f;
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
+                horizontalInput = -1f;
+            else if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
+                horizontalInput = 1f;
+        }
+
+        // Yön değiştirme (Opsiyonel)
+        if (horizontalInput != 0)
+        {
+            Vector3 scale = transform.localScale;
+            scale.x = Mathf.Abs(scale.x) * (horizontalInput > 0 ? 1 : -1);
+            transform.localScale = scale;
+        }
     }
 
     void FixedUpdate()
     {
-        if (WaveManager.instance == null)
+        if (waveManager == null)
         {
-            if (!waveManagerMissingLogged)
+            waveManager = WaveManager.instance;
+            if (waveManager == null)
             {
-                Debug.LogError("WaveManager sahnede bulunamadı! Lütfen 'Water' objesine WaveManager scriptini eklediğinden emin ol.");
-                waveManagerMissingLogged = true;
+                if (!waveManagerMissingLogged)
+                {
+                    Debug.LogError("WaveManager sahnede bulunamadı! Lütfen 'Water' objesine WaveManager scriptini eklediğinden emin ol.");
+                    waveManagerMissingLogged = true;
+                }
+                return;
             }
-            return;
         }
 
         // 1. Oyuncu Hareketi (Sağ/Sol)
-        if (canMove)
+        if (Mathf.Abs(horizontalInput) > 0.01f)
         {
-            float moveInput = 0f;
-            if (Keyboard.current != null)
-            {
-                if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
-                    moveInput = -1f;
-                else if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
-                    moveInput = 1f;
-            }
-
             // Sadece X ekseninde hız uygula, Y eksenini fiziğe bırak
-            Vector2 force = new Vector2(moveInput * moveSpeed, 0f);
+            Vector2 force = new Vector2(horizontalInput * moveSpeed, 0f);
             rb.AddForce(force);
         }
 
         // 2. Yüzme Mantığı (Buoyancy)
         // Teknenin olduğu yerdeki su yüksekliği
-        float waveHeight = WaveManager.instance.GetWaveHeight(transform.position.x);
+        float waveHeight = waveManager.GetWaveHeight(transform.position.x);
         
         // Kaldırma kuvvetinin uygulanacağı nokta (Ofset eklenmiş)
-        // surfaceOffset pozitifse, kontrol noktası yukarı kayar, tekne daha çok batar.
         float checkY = transform.position.y + surfaceOffset;
 
         // Eğer tekne suyun altındaysa
@@ -76,25 +99,21 @@ public class BoatController : MonoBehaviour
             // Yukarı doğru kuvvet uygula (Yerçekimini yenmek için)
             rb.AddForce(new Vector2(0f, Mathf.Abs(Physics2D.gravity.y) * displacementMultiplier * floatStrength), ForceMode2D.Force);
             
-                // Su sürtünmesi (Damping) - suyun içindeyken yavaşlasın
-                // Zıplamayı önlemek için sürtünmeyi artırdık
-                rb.linearDamping = 3f;
-                rb.angularDamping = 3f;
-            }
-            else
-            {
-                // Havadayken sürtünme az olsun
-                rb.linearDamping = 0.05f;
-                rb.angularDamping = 0.05f;
-            }        // 3. Rotasyon (Dalgaya uyum sağlama)
-        // Teknenin biraz sağına ve soluna bakarak eğimi hesapla
-        float leftX = transform.position.x - 1.0f;
-        float rightX = transform.position.x + 1.0f;
-        float leftY = WaveManager.instance.GetWaveHeight(leftX);
-        float rightY = WaveManager.instance.GetWaveHeight(rightX);
+            // Su sürtünmesi (Damping) - suyun içindeyken yavaşlasın
+            rb.linearDamping = 3f;
+            rb.angularDamping = 3f;
+        }
+        else
+        {
+            // Havadayken sürtünme az olsun
+            rb.linearDamping = 0.05f;
+            rb.angularDamping = 0.05f;
+        }
 
-        Vector2 waveDirection = new Vector2(rightX - leftX, rightY - leftY).normalized;
-        float targetAngle = Mathf.Atan2(waveDirection.y, waveDirection.x) * Mathf.Rad2Deg;
+        // 3. Rotasyon (Dalgaya uyum sağlama)
+        // Analitik türev kullanarak eğimi hesapla (Daha hassas ve performanslı)
+        float slope = waveManager.GetWaveSlope(transform.position.x);
+        float targetAngle = Mathf.Atan2(slope, 1f) * Mathf.Rad2Deg;
 
         // Yumuşak dönüş
         float currentAngle = transform.rotation.eulerAngles.z;

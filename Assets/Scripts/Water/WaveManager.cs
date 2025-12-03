@@ -144,19 +144,38 @@ public class WaveManager : MonoBehaviour
     public float GetWaveHeight(float x)
     {
         float y = transform.position.y + offset;
+        float t = Application.isPlaying ? Time.time : 0f;
         
         // Ana dalga
-        y += amplitude * Mathf.Sin(x / length + Time.time * speed);
+        y += amplitude * Mathf.Sin(x / length + t * speed);
 
         // Detay dalgası (Harmonik)
         if (useDetailWaves)
         {
-            y += detailAmplitude * Mathf.Sin(x / detailLength + Time.time * detailSpeed);
+            y += detailAmplitude * Mathf.Sin(x / detailLength + t * detailSpeed);
             // Ekstra rastgelelik için 3. bir katman
-            y += (detailAmplitude / 2f) * Mathf.Sin(x / (detailLength * 0.5f) + Time.time * (detailSpeed * 1.5f));
+            y += (detailAmplitude / 2f) * Mathf.Sin(x / (detailLength * 0.5f) + t * (detailSpeed * 1.5f));
         }
 
         return y;
+    }
+
+    // Verilen X pozisyonundaki dalga eğimini (türevini) döndürür
+    public float GetWaveSlope(float x)
+    {
+        float t = Application.isPlaying ? Time.time : 0f;
+        float slope = 0f;
+
+        // Ana dalga türevi: d/dx [A * sin(x/L + t*S)] = (A/L) * cos(x/L + t*S)
+        slope += (amplitude / length) * Mathf.Cos(x / length + t * speed);
+
+        if (useDetailWaves)
+        {
+            slope += (detailAmplitude / detailLength) * Mathf.Cos(x / detailLength + t * detailSpeed);
+            slope += ((detailAmplitude / 2f) / (detailLength * 0.5f)) * Mathf.Cos(x / (detailLength * 0.5f) + t * (detailSpeed * 1.5f));
+        }
+
+        return slope;
     }
 
     void OnDrawGizmos()

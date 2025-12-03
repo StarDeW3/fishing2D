@@ -735,7 +735,7 @@ MonoBehaviour:
   detailSpeed: 2
   meshResolution: 100
   meshWidth: 100
-  bottomDepth: 150
+  bottomDepth: 50
   topColor: {r: 0, g: 0.6, b: 0.9, a: 0.8}
   bottomColor: {r: 0, g: 0.1, b: 0.3, a: 1}
 --- !u!4 &517561887

@@ -140,14 +140,16 @@ public class Hook : MonoBehaviour
         if (fishingRod == null) 
         {
             fishingRod = FindFirstObjectByType<FishingRod>();
-            if (fishingRod == null)
-            {
-                Debug.LogError("FishingRod bulunamadı!");
-                // Fallback: Direkt yakala
-                caughtFish = fish;
-                fish.Catch(transform);
-                return;
-            }
+        }
+        
+        if (fishingRod == null)
+        {
+            Debug.LogError("FishingRod bulunamadı!");
+            // Fallback: Direkt yakala
+            caughtFish = fish;
+            fish.Catch(transform);
+            OnMiniGameWin(fish); // Direkt kazan
+            return;
         }
         
         targetRodTip = fishingRod.rodTip;

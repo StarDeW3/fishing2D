@@ -138,6 +138,21 @@ public class SoundManager : MonoBehaviour
         source.Play();
     }
 
+    public void PlayRandomSFX(AudioClip[] clips, float volumeScale = 1f, float pitchVariance = 0.1f)
+    {
+        if (clips == null || clips.Length == 0) return;
+        int index = Random.Range(0, clips.Length);
+        PlaySFX(clips[index], volumeScale, pitchVariance);
+    }
+
+    public void StopMusic()
+    {
+        if (musicSource != null)
+        {
+            musicSource.Stop();
+        }
+    }
+
     public void SetMusicVolume(float volume)
     {
         musicVolume = Mathf.Clamp01(volume);

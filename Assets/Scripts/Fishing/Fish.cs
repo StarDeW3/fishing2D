@@ -199,12 +199,28 @@ public class Fish : MonoBehaviour
 
     public void UpdateCollider()
     {
-        BoxCollider2D boxCol = col as BoxCollider2D;
-        
-        if (sr != null && boxCol != null && sr.sprite != null)
+        if (sr == null || sr.sprite == null || col == null) return;
+
+        if (col is BoxCollider2D boxCol)
         {
             boxCol.size = sr.sprite.bounds.size;
-            boxCol.offset = Vector2.zero; // Pivot merkezde varsayıyoruz
+            boxCol.offset = Vector2.zero;
+        }
+        else if (col is CircleCollider2D circleCol)
+        {
+            // En büyük boyutu yarıçap olarak al
+            float maxDim = Mathf.Max(sr.sprite.bounds.size.x, sr.sprite.bounds.size.y);
+            circleCol.radius = maxDim / 2f;
+            circleCol.offset = Vector2.zero;
+        }
+        else if (col is CapsuleCollider2D capsuleCol)
+        {
+            capsuleCol.size = sr.sprite.bounds.size;
+            capsuleCol.offset = Vector2.zero;
+            // Yönü otomatik ayarla (Yatay balıklar için)
+            capsuleCol.direction = (sr.sprite.bounds.size.x > sr.sprite.bounds.size.y) 
+                ? CapsuleDirection2D.Horizontal 
+                : CapsuleDirection2D.Vertical;
         }
     }
 

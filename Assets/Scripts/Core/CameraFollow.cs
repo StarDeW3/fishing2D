@@ -14,6 +14,7 @@ public class CameraFollow : MonoBehaviour
     public float maxZoom = 40f; // Daha derinlere inebilmek için artırıldı
     public float zoomPadding = 5f; // Kenar boşluğu
     public float zoomSmoothTime = 0.2f; // Zoom geçiş süresi
+    public float secondaryTargetOffset = 5f; // İkinci hedef (Kanca) için Y ofseti
 
     [Header("Eksen Kilitleri")]
     public bool lockY = false; // Y ekseninde takibi kilitle (Dalgalarda sallanmayı önlemek için)
@@ -73,7 +74,7 @@ public class CameraFollow : MonoBehaviour
             if (requiredSize > maxZoom)
             {
                 targetPos = secondaryTarget.position;
-                targetPos.y += 5f; 
+                targetPos.y += secondaryTargetOffset; 
             }
             else
             {
@@ -136,5 +137,15 @@ public class CameraFollow : MonoBehaviour
             Vector3 size = new Vector3(maxPosition.x - minPosition.x, maxPosition.y - minPosition.y, 0);
             Gizmos.DrawWireCube(center, size);
         }
+    }
+
+    public void SetSecondaryTarget(Transform target)
+    {
+        secondaryTarget = target;
+    }
+
+    public void ClearSecondaryTarget()
+    {
+        secondaryTarget = null;
     }
 }

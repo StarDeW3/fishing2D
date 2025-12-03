@@ -96,10 +96,24 @@ public class FishingMiniGame : MonoBehaviour
         float referenceDist = 8f; 
         float factor = referenceDist / Mathf.Max(distance, 1f);
         factor = Mathf.Clamp(factor, 0.5f, 1.5f); // Çok aşırı yavaşlamasın (0.2 -> 0.5)
-        actualCatchSpeed = catchSpeed * factor;
+        
+        // Upgrade sisteminden hız al
+        float baseReelSpeed = catchSpeed;
+        if (UpgradeManager.instance != null)
+        {
+            baseReelSpeed = UpgradeManager.instance.GetValue(UpgradeType.ReelSpeed);
+        }
+        
+        actualCatchSpeed = baseReelSpeed * factor;
 
         // Zorluğa göre yeşil alan boyutunu ayarla
-        float newSize = Mathf.Lerp(150f, 70f, (difficulty - 1) / 4f);
+        float baseSize = 150f;
+        if (UpgradeManager.instance != null)
+        {
+            baseSize = UpgradeManager.instance.GetValue(UpgradeType.BarSize);
+        }
+        
+        float newSize = Mathf.Lerp(baseSize, baseSize * 0.5f, (difficulty - 1) / 4f);
         catchArea.sizeDelta = new Vector2(catchArea.sizeDelta.x, newSize);
         catchAreaSize = newSize;
 

@@ -181,14 +181,41 @@ public class FishSpawner : MonoBehaviour
     {
         if (totalWeight == 0) CalculateTotalWeight();
 
-        int randomValue = Random.Range(0, totalWeight);
-        int currentWeight = 0;
+        // Şans faktörü (Upgrade)
+        float luckBonus = 0f;
+        if (UpgradeManager.instance != null)
+        {
+            luckBonus = UpgradeManager.instance.GetValue(UpgradeType.Luck);
+        }
 
+        // Şans faktörünü nasıl uygularız?
+        // Basitçe: Zor balıkların (düşük spawnWeight) ağırlığını artırabiliriz.
+        // Veya rastgele sayı üretirken üst limiti değiştirebiliriz.
+        // Burada basit bir yöntem: Nadir balıklar için spawnWeight'i geçici olarak artır.
+        
+        int currentTotalWeight = 0;
+        List<int> weights = new List<int>();
+        
         foreach (var type in fishTypes)
         {
-            currentWeight += type.spawnWeight;
+            int w = type.spawnWeight;
+            // Eğer zorluk yüksekse (nadir balık), şans bonusu ekle
+            if (type.difficulty > 2.5f)
+            {
+                w += Mathf.RoundToInt(luckBonus);
+            }
+            weights.Add(w);
+            currentTotalWeight += w;
+        }
+
+        int randomValue = Random.Range(0, currentTotalWeight);
+        int currentWeight = 0;
+
+        for (int i = 0; i < fishTypes.Count; i++)
+        {
+            currentWeight += weights[i];
             if (randomValue < currentWeight)
-                return type;
+                return fishTypes[i];
         }
 
         return fishTypes[0];
