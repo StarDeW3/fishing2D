@@ -62,7 +62,7 @@ public class Fish : MonoBehaviour
         direction = Random.value > 0.5f ? 1f : -1f;
         UpdateFacing();
         
-        if (turnWait == null) turnWait = new WaitForSeconds(turnDelay);
+        turnWait = new WaitForSeconds(turnDelay);
         
         if (swimRoutine != null) StopCoroutine(swimRoutine);
         swimRoutine = StartCoroutine(SwimRoutine());
@@ -183,12 +183,19 @@ public class Fish : MonoBehaviour
         }
     }
 
-    public void Setup(string name, float newSpeed, float newDifficulty, int newScore, Sprite newSprite)
+    public void Setup(string name, float newSpeed, float newDifficulty, int newScore, Sprite newSprite, float newTurnDelay = -1f)
     {
         fishName = name;
         speed = newSpeed;
         difficulty = newDifficulty;
         scoreValue = newScore;
+
+        if (newTurnDelay >= 0f)
+        {
+            turnDelay = newTurnDelay;
+            // turnDelay değiştiyse bekleme objesini yenile
+            turnWait = new WaitForSeconds(turnDelay);
+        }
         
         if (sr != null && newSprite != null)
         {

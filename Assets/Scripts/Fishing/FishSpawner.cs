@@ -19,6 +19,10 @@ public class FishSpawner : MonoBehaviour
     public float spawnInterval = 3f;
     public int maxFishCount = 15; // Ekranda aynı anda olabilecek maksimum balık
     
+    [Header("Balik Turleri (Asset)")]
+    [Tooltip("Buraya FishTypeData asset'leri eklersen, aşağıdaki 'Balik Turleri' listesini kullanmaz.")]
+    public List<FishTypeData> fishTypeAssets;
+
     [Header("Balik Turleri")]
     public List<FishType> fishTypes;
     
@@ -36,14 +40,22 @@ public class FishSpawner : MonoBehaviour
     private int currentFishCount = 0;
     private int totalWeight;
 
+    private bool UseAssetTypes => fishTypeAssets != null && fishTypeAssets.Count > 0;
+
+    void OnValidate()
+    {
+        if (UseAssetTypes || (fishTypes != null && fishTypes.Count > 0))
+            CalculateTotalWeight();
+    }
+
     void Start()
     {
         // Hiyerarşi düzeni için container oluştur
         GameObject container = new GameObject("FishContainer");
         fishContainer = container.transform;
 
-        // Eğer balık türü yoksa varsayılanları ekle
-        if (fishTypes == null || fishTypes.Count == 0)
+        // Eğer asset türleri verilmediyse ve balık türü yoksa varsayılanları ekle
+        if (!UseAssetTypes && (fishTypes == null || fishTypes.Count == 0))
         {
             if (fishTypes == null) fishTypes = new List<FishType>();
             AddDefaultFishTypes();
@@ -73,7 +85,18 @@ public class FishSpawner : MonoBehaviour
     void CalculateTotalWeight()
     {
         totalWeight = 0;
-        foreach (var type in fishTypes) totalWeight += type.spawnWeight;
+        if (UseAssetTypes)
+        {
+            for (int i = 0; i < fishTypeAssets.Count; i++)
+            {
+                var type = fishTypeAssets[i];
+                if (type != null) totalWeight += Mathf.Max(0, type.spawnWeight);
+            }
+        }
+        else
+        {
+            foreach (var type in fishTypes) totalWeight += type.spawnWeight;
+        }
     }
 
     void AddDefaultFishTypes()
@@ -113,11 +136,31 @@ public class FishSpawner : MonoBehaviour
 
     void SpawnFish()
     {
-        if (fishTypes.Count == 0) return;
+        if (UseAssetTypes)
+        {
+            if (fishTypeAssets == null || fishTypeAssets.Count == 0) return;
+
+            FishTypeData selectedAssetType = GetRandomFishTypeAsset();
+            if (selectedAssetType == null) return;
+
+            Vector3 assetPos = new Vector3(Random.Range(minX, maxX), Random.Range(minY, maxY), 0);
+            Fish assetFishScript = GetFishFromPool(assetPos);
+
+            if (assetFishScript != null)
+            {
+                string n = !string.IsNullOrEmpty(selectedAssetType.fishName) ? selectedAssetType.fishName : "Fish";
+                assetFishScript.Setup(n, selectedAssetType.speed, selectedAssetType.difficulty, selectedAssetType.scoreValue, selectedAssetType.sprite, selectedAssetType.turnDelay);
+                currentFishCount++;
+            }
+
+            return;
+        }
+
+        if (fishTypes == null || fishTypes.Count == 0) return;
 
         // Ağırlıklı rastgele seçim
-        FishType selectedType = GetRandomFishType();
-        if (selectedType == null) return;
+        FishType selectedLegacyType = GetRandomFishType();
+        if (selectedLegacyType == null) return;
 
         Vector3 pos = new Vector3(Random.Range(minX, maxX), Random.Range(minY, maxY), 0);
         
@@ -126,9 +169,80 @@ public class FishSpawner : MonoBehaviour
         // Balık özelliklerini ayarla
         if (fishScript != null)
         {
-            fishScript.Setup(selectedType.name, selectedType.speed, selectedType.difficulty, selectedType.score, selectedType.sprite);
+            fishScript.Setup(selectedLegacyType.name, selectedLegacyType.speed, selectedLegacyType.difficulty, selectedLegacyType.score, selectedLegacyType.sprite);
             currentFishCount++;
         }
+    }
+
+    FishTypeData GetRandomFishTypeAsset()
+    {
+        if (fishTypeAssets == null || fishTypeAssets.Count == 0)
+            return null;
+
+        if (totalWeight == 0) CalculateTotalWeight();
+
+        // Şans faktörü (Upgrade)
+        float luckBonus = 0f;
+        if (UpgradeManager.instance != null)
+        {
+            luckBonus = UpgradeManager.instance.GetValue(UpgradeType.Luck);
+        }
+
+        // Hava durumu bonusu
+        float weatherBonus = 0f;
+
+        float totalBonus = luckBonus + weatherBonus;
+
+        int currentTotalWeight = 0;
+        for (int i = 0; i < fishTypeAssets.Count; i++)
+        {
+            FishTypeData type = fishTypeAssets[i];
+            if (type == null) continue;
+
+            int w = Mathf.Max(0, type.spawnWeight);
+            if (type.difficulty > 2.5f)
+                w += Mathf.RoundToInt(totalBonus);
+
+            if (w > 0)
+                currentTotalWeight += w;
+        }
+
+        if (currentTotalWeight <= 0)
+        {
+            for (int i = 0; i < fishTypeAssets.Count; i++)
+            {
+                if (fishTypeAssets[i] != null)
+                    return fishTypeAssets[i];
+            }
+            return null;
+        }
+
+        int randomValue = Random.Range(0, currentTotalWeight);
+        int currentWeight = 0;
+
+        for (int i = 0; i < fishTypeAssets.Count; i++)
+        {
+            FishTypeData type = fishTypeAssets[i];
+            if (type == null) continue;
+
+            int w = Mathf.Max(0, type.spawnWeight);
+            if (type.difficulty > 2.5f)
+                w += Mathf.RoundToInt(totalBonus);
+
+            if (w <= 0) continue;
+
+            currentWeight += w;
+            if (randomValue < currentWeight)
+                return type;
+        }
+
+        for (int i = fishTypeAssets.Count - 1; i >= 0; i--)
+        {
+            if (fishTypeAssets[i] != null)
+                return fishTypeAssets[i];
+        }
+
+        return null;
     }
 
     Fish GetFishFromPool(Vector3 position)
@@ -201,32 +315,41 @@ public class FishSpawner : MonoBehaviour
         // Veya rastgele sayı üretirken üst limiti değiştirebiliriz.
         // Burada basit bir yöntem: Nadir balıklar için spawnWeight'i geçici olarak artır.
         
+        // GC optimizasyonu: her spawn'da List allocation yapma
         int currentTotalWeight = 0;
-        List<int> weights = new List<int>();
-        
-        foreach (var type in fishTypes)
+        for (int i = 0; i < fishTypes.Count; i++)
         {
+            FishType type = fishTypes[i];
             int w = type.spawnWeight;
             // Eğer zorluk yüksekse (nadir balık), şans bonusu ekle
             if (type.difficulty > 2.5f)
-            {
                 w += Mathf.RoundToInt(totalBonus);
-            }
-            weights.Add(w);
-            currentTotalWeight += w;
+
+            if (w > 0)
+                currentTotalWeight += w;
         }
+
+        if (currentTotalWeight <= 0)
+            return fishTypes[0];
 
         int randomValue = Random.Range(0, currentTotalWeight);
         int currentWeight = 0;
 
         for (int i = 0; i < fishTypes.Count; i++)
         {
-            currentWeight += weights[i];
+            FishType type = fishTypes[i];
+            int w = type.spawnWeight;
+            if (type.difficulty > 2.5f)
+                w += Mathf.RoundToInt(totalBonus);
+
+            if (w <= 0) continue;
+
+            currentWeight += w;
             if (randomValue < currentWeight)
-                return fishTypes[i];
+                return type;
         }
 
-        return fishTypes[0];
+        return fishTypes[fishTypes.Count - 1];
     }
 
     [Header("Debug")]

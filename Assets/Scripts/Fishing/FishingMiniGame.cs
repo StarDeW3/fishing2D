@@ -43,14 +43,22 @@ public class FishingMiniGame : MonoBehaviour
     private float actualCatchSpeed;
     private float lastDistanceDisplayed = -1f; // UI optimizasyonu için
 
+    private bool lastIsInside = false;
+    private bool hasInsideState = false;
+
     // Callbackler
     private System.Action onWin;
     private System.Action onLose;
 
     void Awake()
     {
-        if (instance == null) instance = this;
-        else if (instance != this) Destroy(gameObject);
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
     }
 
     void Start()
@@ -80,6 +88,20 @@ public class FishingMiniGame : MonoBehaviour
     {
         if (isPlaying) return; // Zaten oyun varsa yenisini başlatma
 
+        // UI referansları yoksa oluşturmayı dene; yine de yoksa crash yerine güvenli şekilde iptal et.
+        if (gamePanel == null || fishIcon == null || catchArea == null || progressBar == null)
+        {
+            if (gamePanel == null) CreateUI();
+        }
+
+        if (gamePanel == null || fishIcon == null || catchArea == null || progressBar == null)
+        {
+            Debug.LogError("FishingMiniGame: UI referanslari eksik, minigame baslatilamiyor.");
+            // Ödül vermemek için lose callback.
+            loseCallback?.Invoke();
+            return;
+        }
+
         currentDifficulty = difficulty;
         initialDistance = distance;
         lastDistanceDisplayed = -1f; // Reset
@@ -91,6 +113,8 @@ public class FishingMiniGame : MonoBehaviour
         fishPosition = 0.5f;
         catchPosition = 0.5f;
         catchVelocity = 0f;
+
+        hasInsideState = false;
 
         // Mesafeye göre hızı ayarla (Uzaksa daha yavaş dolsun)
         float referenceDist = 8f; 
@@ -213,18 +237,27 @@ public class FishingMiniGame : MonoBehaviour
         if (isInside)
         {
             currentProgress += actualCatchSpeed * Time.deltaTime;
-            if (statusText != null) statusText.text = "REELING!";
-            if (statusText != null) statusText.color = Color.green;
+            if (statusText != null && (!hasInsideState || lastIsInside != isInside))
+            {
+                statusText.text = "REELING!";
+                statusText.color = Color.green;
+            }
         }
         else
         {
             currentProgress -= drainSpeed * Time.deltaTime;
-            if (statusText != null) statusText.text = "ESCAPING!";
-            if (statusText != null) statusText.color = Color.red;
+            if (statusText != null && (!hasInsideState || lastIsInside != isInside))
+            {
+                statusText.text = "ESCAPING!";
+                statusText.color = Color.red;
+            }
 
             // Shake efekti başlat
             shakeTimer = 0.1f;
         }
+
+        hasInsideState = true;
+        lastIsInside = isInside;
 
         currentProgress = Mathf.Clamp01(currentProgress);
 
@@ -234,6 +267,8 @@ public class FishingMiniGame : MonoBehaviour
 
     void UpdateUI()
     {
+        if (fishIcon == null || catchArea == null || progressBar == null) return;
+
         // Track boyutunu hesapla (barSize değil, gerçek track boyutu)
         float trackHeight = barSize - 20; // Track'in offset'lerini hesaba kat
         float halfTrack = trackHeight / 2f;
@@ -264,7 +299,7 @@ public class FishingMiniGame : MonoBehaviour
             // String oluşturma maliyetini düşürmek için sadece değer değiştiğinde güncelle
             if (Mathf.Abs(distance - lastDistanceDisplayed) > 0.1f)
             {
-                distanceText.text = distance.ToString("0.0") + " m";
+                distanceText.SetText("{0:0.0} m", distance);
                 lastDistanceDisplayed = distance;
             }
             
@@ -276,6 +311,8 @@ public class FishingMiniGame : MonoBehaviour
 
     void UpdateEffects()
     {
+        if (gamePanel == null) return;
+
         if (shakeTimer > 0)
         {
             shakeTimer -= Time.deltaTime;
@@ -293,7 +330,13 @@ public class FishingMiniGame : MonoBehaviour
 
     void CreateUI()
     {
-        GameObject canvasObj = GameObject.Find("Canvas");
+        GameObject canvasObj = null;
+        if (GameManager.instance != null)
+        {
+            Transform t = GameManager.instance.CanvasTransform;
+            if (t != null) canvasObj = t.gameObject;
+        }
+
         if (canvasObj == null)
         {
             Canvas c = FindFirstObjectByType<Canvas>();
@@ -405,6 +448,8 @@ public class FishingMiniGame : MonoBehaviour
         GameObject textObj = new GameObject("StatusText");
         textObj.transform.SetParent(gamePanel.transform, false);
         statusText = textObj.AddComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            statusText.font = TMP_Settings.defaultFontAsset;
         statusText.fontSize = 24;
         statusText.alignment = TextAlignmentOptions.Center;
         statusText.fontStyle = FontStyles.Bold;
@@ -420,6 +465,8 @@ public class FishingMiniGame : MonoBehaviour
         GameObject distObj = new GameObject("DistanceText");
         distObj.transform.SetParent(gamePanel.transform, false);
         distanceText = distObj.AddComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            distanceText.font = TMP_Settings.defaultFontAsset;
         distanceText.fontSize = 24;
         distanceText.color = Color.white;
         distanceText.alignment = TextAlignmentOptions.Center;
@@ -434,6 +481,9 @@ public class FishingMiniGame : MonoBehaviour
         distRect.pivot = new Vector2(0.5f, 1f); // Üstten hizala (Panelin altına sarkıt)
         distRect.anchoredPosition = new Vector2(0, -10); 
         distRect.sizeDelta = new Vector2(200, 50);
+
+        if (GameManager.instance != null)
+            GameManager.instance.ApplyFont(gamePanel);
 
         gamePanel.SetActive(false);
     }

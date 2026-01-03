@@ -8,8 +8,13 @@ public class BoatController : MonoBehaviour
 
     void Awake()
     {
-        if (instance == null) instance = this;
-        else Destroy(gameObject);
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
     }
 
     [Header("Hareket Ayarları")]
@@ -31,6 +36,9 @@ public class BoatController : MonoBehaviour
     private bool waveManagerMissingLogged = false;
     private float horizontalInput;
     private WaveManager waveManager;
+    private int lastFacingSign = 1;
+    private bool lastWasInWater = false;
+    private float nextWaveManagerSearchTime = 0f;
 
     void Start()
     {
@@ -72,12 +80,17 @@ public class BoatController : MonoBehaviour
                 horizontalInput = 1f;
         }
 
-        // Yön değiştirme (Opsiyonel)
+        // Yön değiştirme (Opsiyonel) - only when direction changes
         if (horizontalInput != 0)
         {
-            Vector3 scale = transform.localScale;
-            scale.x = Mathf.Abs(scale.x) * (horizontalInput > 0 ? 1 : -1);
-            transform.localScale = scale;
+            int sign = horizontalInput > 0 ? 1 : -1;
+            if (sign != lastFacingSign)
+            {
+                lastFacingSign = sign;
+                Vector3 scale = transform.localScale;
+                scale.x = Mathf.Abs(scale.x) * sign;
+                transform.localScale = scale;
+            }
         }
     }
 
@@ -85,7 +98,11 @@ public class BoatController : MonoBehaviour
     {
         if (waveManager == null)
         {
-            waveManager = WaveManager.instance;
+            if (Time.time >= nextWaveManagerSearchTime)
+            {
+                waveManager = WaveManager.instance;
+                nextWaveManagerSearchTime = Time.time + 0.5f;
+            }
             if (waveManager == null)
             {
                 if (!waveManagerMissingLogged)
@@ -113,7 +130,8 @@ public class BoatController : MonoBehaviour
         float checkY = transform.position.y + surfaceOffset;
 
         // Eğer tekne suyun altındaysa
-        if (checkY < waveHeight)
+        bool isInWater = checkY < waveHeight;
+        if (isInWater)
         {
             float displacementMultiplier = Mathf.Clamp01((waveHeight - checkY) / depthBeforeSubmerged) * displacementAmount;
             
@@ -121,15 +139,23 @@ public class BoatController : MonoBehaviour
             rb.AddForce(new Vector2(0f, Mathf.Abs(Physics2D.gravity.y) * displacementMultiplier * floatStrength), ForceMode2D.Force);
             
             // Su sürtünmesi (Damping) - suyun içindeyken yavaşlasın
-            rb.linearDamping = 3f;
-            rb.angularDamping = 3f;
+            if (!lastWasInWater)
+            {
+                rb.linearDamping = 3f;
+                rb.angularDamping = 3f;
+            }
         }
         else
         {
             // Havadayken sürtünme az olsun
-            rb.linearDamping = 0.05f;
-            rb.angularDamping = 0.05f;
+            if (lastWasInWater)
+            {
+                rb.linearDamping = 0.05f;
+                rb.angularDamping = 0.05f;
+            }
         }
+
+        lastWasInWater = isInWater;
 
         // 3. Rotasyon (Dalgaya uyum sağlama)
         // Analitik türev kullanarak eğimi hesapla (Daha hassas ve performanslı)

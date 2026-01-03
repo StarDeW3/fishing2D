@@ -38,6 +38,7 @@ public class DayNightCycle : MonoBehaviour
     private Vector3 initialMoonScale = Vector3.one;
     private WaveManager waveManager;
     private float waveManagerCheckTimer = 0f;
+    private float nextCameraLookupTime = 0f;
 
     void Start()
     {
@@ -59,6 +60,13 @@ public class DayNightCycle : MonoBehaviour
 
     void Update()
     {
+        // Kamera yoksa pahalı aramayı seyrek yap
+        if (mainCamera == null && Time.unscaledTime >= nextCameraLookupTime)
+        {
+            mainCamera = Camera.main;
+            nextCameraLookupTime = Time.unscaledTime + 1f;
+        }
+
         // Zamanı ilerlet
         if (dayDuration > 0)
         {

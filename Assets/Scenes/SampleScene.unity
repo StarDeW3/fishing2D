@@ -1222,19 +1222,7 @@ MonoBehaviour:
   fishPrefab: {fileID: 0}
   spawnInterval: 3
   maxFishCount: 15
-  fishTypes:
-  - name: minik
-    sprite: {fileID: -1842537561509974407, guid: c0fee99e3b780044aaadbcd9bffe5c1d, type: 3}
-    speed: 3
-    difficulty: 1.35
-    score: 50
-    spawnWeight: 71
-  - name: "b\xFCy\xFCk"
-    sprite: {fileID: -1842537561509974407, guid: c0fee99e3b780044aaadbcd9bffe5c1d, type: 3}
-    speed: 1.8
-    difficulty: 2.07
-    score: 80
-    spawnWeight: 29
+  fishTypes: []
   minX: -10
   maxX: 10
   minY: -67.98
@@ -1369,7 +1357,7 @@ MonoBehaviour:
   mainMenuPanel: {fileID: 0}
   settingsPanel: {fileID: 0}
   gameFonts:
-  - {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  - {fileID: 11400000, guid: c7731ca3bb9f967469a82b299283e1e1, type: 2}
   currentFontIndex: 0
   money: 0
   isGameActive: 1

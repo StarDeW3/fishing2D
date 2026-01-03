@@ -6,6 +6,8 @@ public class WaveManager : MonoBehaviour
 {
     public static WaveManager instance;
 
+    private static Material sharedWaterMaterial;
+
     [Header("Dalga Ayarları")]
     public float amplitude = 0.5f; // Dalga yüksekliği
     public float length = 2f;      // Dalga genişliği
@@ -37,16 +39,41 @@ public class WaveManager : MonoBehaviour
     private Vector3[] vertices;
     private int[] triangles;
     private Color[] colors;
+
+    private Color lastTopColor;
+    private Color lastBottomColor;
+    private bool colorsDirty = true;
     
     // Optimizasyon için önbellek
     private int currentResolution;
 
+    // Change detection to skip unnecessary mesh rebuilds
+    private float lastCenterX = float.NaN;
+    private float lastTime = float.NaN;
+    private float lastBaseY = float.NaN;
+    private float lastMeshWidth = float.NaN;
+    private float lastBottomDepth = float.NaN;
+    private float lastAmplitude = float.NaN;
+    private float lastLength = float.NaN;
+    private float lastSpeed = float.NaN;
+    private float lastOffset = float.NaN;
+    private bool lastUseDetailWaves;
+    private float lastDetailAmplitude = float.NaN;
+    private float lastDetailLength = float.NaN;
+    private float lastDetailSpeed = float.NaN;
+
+    private float nextCameraSearchTime = 0f;
+    private const float CAMERA_SEARCH_INTERVAL = 1f;
+
     void Awake()
     {
-        if (instance == null)
-            instance = this;
-        else
+        if (instance != null && instance != this)
+        {
             Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
     }
 
     void Start()
@@ -65,9 +92,12 @@ public class WaveManager : MonoBehaviour
         meshFilter.mesh = mesh;
 
         // Material kontrolü (Eğer atanmamışsa Sprites-Default ata)
-        if (meshRenderer.material == null || meshRenderer.material.name.StartsWith("Default"))
+        if (meshRenderer.sharedMaterial == null || meshRenderer.sharedMaterial.name.StartsWith("Default"))
         {
-             meshRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            if (sharedWaterMaterial == null)
+                sharedWaterMaterial = new Material(Shader.Find("Sprites/Default"));
+
+            meshRenderer.sharedMaterial = sharedWaterMaterial;
         }
 
         InitializeMeshArrays();
@@ -86,6 +116,7 @@ public class WaveManager : MonoBehaviour
         vertices = new Vector3[(currentResolution + 1) * 2];
         triangles = new int[currentResolution * 6];
         colors = new Color[vertices.Length];
+        colorsDirty = true;
 
         // Üçgenleri bir kez oluştur (Resolution değişmediği sürece sabittir)
         for (int i = 0; i < currentResolution; i++)
@@ -118,6 +149,14 @@ public class WaveManager : MonoBehaviour
             InitializeMeshArrays();
         }
 
+        // Only rewrite colors when they actually change
+        if (topColor != lastTopColor || bottomColor != lastBottomColor)
+        {
+            lastTopColor = topColor;
+            lastBottomColor = bottomColor;
+            colorsDirty = true;
+        }
+
         UpdateMesh();
     }
 
@@ -125,7 +164,48 @@ public class WaveManager : MonoBehaviour
     {
         // Kamerayı takip et (Sonsuz su illüzyonu)
         float centerX = transform.position.x;
+
+        if (mainCamera == null && Application.isPlaying && Time.unscaledTime >= nextCameraSearchTime)
+        {
+            mainCamera = Camera.main;
+            nextCameraSearchTime = Time.unscaledTime + CAMERA_SEARCH_INTERVAL;
+        }
+
         if (mainCamera != null) centerX = mainCamera.transform.position.x;
+
+        Matrix4x4 worldToLocal = transform.worldToLocalMatrix;
+        float t = Application.isPlaying ? Time.time : 0f;
+
+        float baseY = transform.position.y + offset;
+
+        // Skip rebuild when nothing relevant changed.
+        // Note: colorsDirty is handled by separate logic; if colors are dirty we must rebuild colors.
+        bool paramsChanged =
+            !Mathf.Approximately(centerX, lastCenterX) ||
+            !Mathf.Approximately(t, lastTime) ||
+            !Mathf.Approximately(baseY, lastBaseY) ||
+            !Mathf.Approximately(meshWidth, lastMeshWidth) ||
+            !Mathf.Approximately(bottomDepth, lastBottomDepth) ||
+            !Mathf.Approximately(amplitude, lastAmplitude) ||
+            !Mathf.Approximately(length, lastLength) ||
+            !Mathf.Approximately(speed, lastSpeed) ||
+            !Mathf.Approximately(offset, lastOffset) ||
+            useDetailWaves != lastUseDetailWaves ||
+            !Mathf.Approximately(detailAmplitude, lastDetailAmplitude) ||
+            !Mathf.Approximately(detailLength, lastDetailLength) ||
+            !Mathf.Approximately(detailSpeed, lastDetailSpeed);
+
+        if (!paramsChanged && !colorsDirty)
+            return;
+        float invLength = length != 0f ? 1f / length : 0f;
+        float mainTime = t * speed;
+
+        float invDetailLength = detailLength != 0f ? 1f / detailLength : 0f;
+        float detailTime = t * detailSpeed;
+        float invDetailLengthHalf = (detailLength * 0.5f) != 0f ? 1f / (detailLength * 0.5f) : 0f;
+        float detailTime1_5 = t * (detailSpeed * 1.5f);
+
+        float yBottom = transform.position.y - bottomDepth;
 
         // Grid snapping (Vertexlerin titremesini önlemek için)
         float step = meshWidth / currentResolution;
@@ -135,25 +215,61 @@ public class WaveManager : MonoBehaviour
         for (int i = 0; i <= currentResolution; i++)
         {
             float x = startX + i * step;
-            float yTop = GetWaveHeight(x);
-            float yBottom = transform.position.y - bottomDepth;
+
+            // Inline wave height (same math as GetWaveHeight, but avoids per-vertex function/division overhead)
+            float yTop = baseY;
+            yTop += amplitude * Mathf.Sin(x * invLength + mainTime);
+
+            if (useDetailWaves)
+            {
+                yTop += detailAmplitude * Mathf.Sin(x * invDetailLength + detailTime);
+                yTop += (detailAmplitude / 2f) * Mathf.Sin(x * invDetailLengthHalf + detailTime1_5);
+            }
 
             // World Space pozisyonları hesapla
             Vector3 worldPosTop = new Vector3(x, yTop, transform.position.z);
             Vector3 worldPosBottom = new Vector3(x, yBottom, transform.position.z);
 
             // Local Space'e çevir (Scale ve Rotation'dan etkilenmemesi için)
-            vertices[i * 2] = transform.InverseTransformPoint(worldPosTop);
-            vertices[i * 2 + 1] = transform.InverseTransformPoint(worldPosBottom);
+            vertices[i * 2] = worldToLocal.MultiplyPoint3x4(worldPosTop);
+            vertices[i * 2 + 1] = worldToLocal.MultiplyPoint3x4(worldPosBottom);
 
-            // Renkler (Dinamik olarak güncellenebilir)
-            colors[i * 2] = topColor;
-            colors[i * 2 + 1] = bottomColor;
+            if (colorsDirty)
+            {
+                colors[i * 2] = topColor;
+                colors[i * 2 + 1] = bottomColor;
+            }
         }
 
         mesh.vertices = vertices;
-        mesh.colors = colors;
-        mesh.RecalculateBounds();
+        if (colorsDirty)
+        {
+            mesh.colors = colors;
+            colorsDirty = false;
+        }
+
+        // RecalculateBounds() her frame pahalı; conservative bounds yeterli
+        float maxWave = Mathf.Abs(amplitude) + (useDetailWaves ? (Mathf.Abs(detailAmplitude) * 1.5f) : 0f) + Mathf.Abs(offset) + 1f;
+        float height = bottomDepth + maxWave;
+        // Bounds merkezini de kaydır (kamera hareket edince culling olmasın)
+        Vector3 worldCenter = new Vector3(centerX, transform.position.y - (bottomDepth * 0.5f), transform.position.z);
+        Vector3 localCenter = worldToLocal.MultiplyPoint3x4(worldCenter);
+        mesh.bounds = new Bounds(localCenter, new Vector3(meshWidth + 2f, height + 2f, 10f));
+
+        // Update change-tracking snapshot
+        lastCenterX = centerX;
+        lastTime = t;
+        lastBaseY = baseY;
+        lastMeshWidth = meshWidth;
+        lastBottomDepth = bottomDepth;
+        lastAmplitude = amplitude;
+        lastLength = length;
+        lastSpeed = speed;
+        lastOffset = offset;
+        lastUseDetailWaves = useDetailWaves;
+        lastDetailAmplitude = detailAmplitude;
+        lastDetailLength = detailLength;
+        lastDetailSpeed = detailSpeed;
     }
 
     // Verilen X pozisyonundaki su yüksekliğini döndürür

@@ -7,6 +7,10 @@ public class UIManager : MonoBehaviour
 {
     public static UIManager instance;
 
+    private const string PREF_TOTAL_FISH_CAUGHT = "TotalFishCaught";
+    private const string PREF_TOTAL_MONEY_EARNED = "TotalMoneyEarned";
+    private const string PREF_PLAY_TIME = "PlayTime";
+
     [Header("Ana Paneller")]
     public GameObject mainHUD;
     public GameObject upgradePanel;
@@ -34,10 +38,25 @@ public class UIManager : MonoBehaviour
     private int totalMoneyEarned = 0;
     private float playTime = 0f;
 
+    private bool statsDirty = false;
+    private float nextStatsSaveTime = 0f;
+    private const float STATS_SAVE_INTERVAL = 5f;
+
+    // Cache (Update içinde pahalı Find* çağrılarını azaltmak için)
+    private FishingRod cachedRod;
+    private Hook cachedHook;
+    private WaveManager cachedWaveManager;
+    private float nextRefSearchTime = 0f;
+
     void Awake()
     {
-        if (instance == null) instance = this;
-        else Destroy(gameObject);
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
 
         LoadStats();
     }
@@ -49,7 +68,9 @@ public class UIManager : MonoBehaviour
 
     void Update()
     {
-        playTime += Time.deltaTime;
+        float dt = Time.deltaTime;
+        playTime += dt;
+        if (dt > 0f) statsDirty = true;
 
         // Tab tuşu - Upgrade Panel
         if (UnityEngine.InputSystem.Keyboard.current != null)
@@ -64,24 +85,54 @@ public class UIManager : MonoBehaviour
             }
         }
 
-        UpdateHUD();
+        FlushStatsIfDue();
+
+        // HUD is currently optional; skip work when there's nothing to update.
+        if (depthText != null)
+            UpdateHUD();
+    }
+
+    void OnDestroy()
+    {
+        FlushStatsIfDue(force: true);
+    }
+
+    void OnApplicationQuit()
+    {
+        FlushStatsIfDue(force: true);
+    }
+
+    private void FlushStatsIfDue(bool force = false)
+    {
+        if (!statsDirty) return;
+        if (!force && Time.unscaledTime < nextStatsSaveTime) return;
+
+        SaveStatsInternal();
+        statsDirty = false;
+        nextStatsSaveTime = Time.unscaledTime + STATS_SAVE_INTERVAL;
     }
 
     void CreateAllUI()
     {
         // Canvas Bul veya Oluştur
-        GameObject canvasObj = GameObject.Find("Canvas");
-        if (canvasObj == null)
+        mainCanvas = null;
+
+        if (GameManager.instance != null)
         {
-            canvasObj = new GameObject("Canvas");
+            Transform t = GameManager.instance.CanvasTransform;
+            if (t != null) mainCanvas = t.GetComponent<Canvas>();
+        }
+
+        if (mainCanvas == null)
+            mainCanvas = FindFirstObjectByType<Canvas>();
+
+        if (mainCanvas == null)
+        {
+            GameObject canvasObj = new GameObject("Canvas");
             mainCanvas = canvasObj.AddComponent<Canvas>();
             mainCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvasObj.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             canvasObj.AddComponent<GraphicRaycaster>();
-        }
-        else
-        {
-            mainCanvas = canvasObj.GetComponent<Canvas>();
         }
 
         // Eski UI objelerini temizle
@@ -90,8 +141,13 @@ public class UIManager : MonoBehaviour
         DestroyOldUI("StatsPanel");
 
         CreateMainHUD();
+
         CreateUpgradePanel();
         CreateStatsPanel();
+
+        // Runtime oluşturulan tüm TMP yazılarında seçili fontun uygulanmasını garanti et
+        if (GameManager.instance != null)
+            GameManager.instance.ApplyFontToAll();
     }
 
     void DestroyOldUI(string objName)
@@ -100,6 +156,7 @@ public class UIManager : MonoBehaviour
         Transform old = mainCanvas.transform.Find(objName);
         if (old != null) Destroy(old.gameObject);
     }
+
 
     void CreateMainHUD()
     {
@@ -122,6 +179,7 @@ public class UIManager : MonoBehaviour
         Image bg = upgradePanel.AddComponent<Image>();
         bg.color = new Color(0.02f, 0.05f, 0.1f, 0.92f);
 
+
         RectTransform rect = upgradePanel.GetComponent<RectTransform>();
         // Sol tarafta dikey panel
         rect.anchorMin = new Vector2(0, 0.05f);
@@ -130,10 +188,6 @@ public class UIManager : MonoBehaviour
         rect.offsetMax = new Vector2(0, 0);
         
         // Kenar çizgisi
-        Outline panelOutline = upgradePanel.AddComponent<Outline>();
-        panelOutline.effectColor = new Color(0.2f, 0.4f, 0.6f, 0.6f);
-        panelOutline.effectDistance = new Vector2(3, -3);
-
         // Başlık
         CreateTextElement(upgradePanel.transform, "Title", "GELISTIRMELER",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -25), 36, TextAlignmentOptions.Center, new Color(0.9f, 0.95f, 1f));
@@ -143,8 +197,8 @@ public class UIManager : MonoBehaviour
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -70), 28, TextAlignmentOptions.Center, new Color(0.4f, 1f, 0.4f));
         upgradeMoneyText = moneyObj.GetComponent<TextMeshProUGUI>();
 
-        // Kapat Butonu
-        CreateCloseButton(upgradePanel.transform, () => upgradePanel.SetActive(false));
+        // Kapat Butonu (Toggle ile kapat ki pause state düzgün çözülsün)
+        CreateCloseButton(upgradePanel.transform, ToggleUpgradePanel);
 
         // Misina Geliştirmeleri Bölümü
         CreateSectionHeader(upgradePanel.transform, "MISINA", new Vector2(0, -110));
@@ -165,6 +219,7 @@ public class UIManager : MonoBehaviour
         Image bg = statsPanel.AddComponent<Image>();
         bg.color = new Color(0.05f, 0.02f, 0.1f, 0.92f);
 
+
         RectTransform rect = statsPanel.GetComponent<RectTransform>();
         // Sağ tarafta kompakt panel
         rect.anchorMin = new Vector2(1f, 0.3f);
@@ -174,16 +229,12 @@ public class UIManager : MonoBehaviour
         rect.sizeDelta = new Vector2(280, 0);
         
         // Kenar efekti
-        Outline statsOutline = statsPanel.AddComponent<Outline>();
-        statsOutline.effectColor = new Color(0.5f, 0.3f, 0.6f, 0.5f);
-        statsOutline.effectDistance = new Vector2(-3, -3);
-
         // Başlık
         CreateTextElement(statsPanel.transform, "Title", "ISTATISTIKLER",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -20), 32, TextAlignmentOptions.Center, new Color(0.9f, 0.85f, 1f));
 
-        // Kapat Butonu
-        CreateCloseButton(statsPanel.transform, () => statsPanel.SetActive(false));
+        // Kapat Butonu (Toggle ile kapat ki pause state düzgün çözülsün)
+        CreateCloseButton(statsPanel.transform, ToggleStatsPanel);
 
         // İstatistikler - daha kompakt
         float yPos = -70;
@@ -214,12 +265,14 @@ public class UIManager : MonoBehaviour
         obj.transform.SetParent(parent, false);
         
         TextMeshProUGUI tmp = obj.AddComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            tmp.font = TMP_Settings.defaultFontAsset;
         tmp.text = text;
         tmp.fontSize = fontSize;
         tmp.alignment = align;
         tmp.color = color ?? Color.white;
         tmp.fontStyle = FontStyles.Bold;
-        tmp.outlineWidth = 0.15f;
+        tmp.outlineWidth = 0.05f;
         tmp.outlineColor = Color.black;
 
         RectTransform rect = obj.GetComponent<RectTransform>();
@@ -238,6 +291,8 @@ public class UIManager : MonoBehaviour
         obj.transform.SetParent(parent, false);
 
         TextMeshProUGUI tmp = obj.AddComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            tmp.font = TMP_Settings.defaultFontAsset;
         tmp.text = text;
         tmp.fontSize = 24;
         tmp.alignment = TextAlignmentOptions.Left;
@@ -300,7 +355,9 @@ public class UIManager : MonoBehaviour
         GameObject txtObj = new GameObject("Text");
         txtObj.transform.SetParent(btnObj.transform, false);
         TextMeshProUGUI txt = txtObj.AddComponent<TextMeshProUGUI>();
-        txt.text = "✕";
+        if (TMP_Settings.defaultFontAsset != null)
+            txt.font = TMP_Settings.defaultFontAsset;
+        txt.text = "X";
         txt.fontSize = 24;
         txt.alignment = TextAlignmentOptions.Center;
         txt.color = Color.white;
@@ -346,14 +403,14 @@ public class UIManager : MonoBehaviour
 
     void PauseGame()
     {
-        Time.timeScale = 0f;
-        if (GameManager.instance != null) GameManager.instance.isPaused = true;
+        if (GameManager.instance != null)
+            GameManager.instance.PushUIPause();
     }
 
     void ResumeGame()
     {
-        Time.timeScale = 1f;
-        if (GameManager.instance != null) GameManager.instance.isPaused = false;
+        if (GameManager.instance != null)
+            GameManager.instance.PopUIPause();
     }
 
     void UpdateHUD()
@@ -362,18 +419,24 @@ public class UIManager : MonoBehaviour
         if (depthText != null)
         {
             float depth = 0f;
-            FishingRod rod = FindFirstObjectByType<FishingRod>();
-            if (rod != null && rod.transform.childCount > 0)
+
+            // Referansları arada bir yenile (sahnede yoksa her frame tarama yapma)
+            if ((cachedRod == null || cachedHook == null) && Time.unscaledTime >= nextRefSearchTime)
             {
-                // Hook derinliği
-                Hook hook = FindFirstObjectByType<Hook>();
-                if (hook != null && WaveManager.instance != null)
-                {
-                    float waterLevel = WaveManager.instance.GetWaveHeight(hook.transform.position.x);
-                    depth = Mathf.Max(0, waterLevel - hook.transform.position.y);
-                }
+                if (cachedRod == null) cachedRod = FindFirstObjectByType<FishingRod>();
+                if (cachedHook == null) cachedHook = FindFirstObjectByType<Hook>();
+                nextRefSearchTime = Time.unscaledTime + 0.5f;
             }
-            depthText.text = $"Derinlik: {depth:F1}m";
+
+            if (cachedWaveManager == null) cachedWaveManager = WaveManager.instance;
+
+            // Hook derinliği
+            if (cachedHook != null && cachedWaveManager != null)
+            {
+                float waterLevel = cachedWaveManager.GetWaveHeight(cachedHook.transform.position.x);
+                depth = Mathf.Max(0, waterLevel - cachedHook.transform.position.y);
+            }
+            depthText.SetText("Derinlik: {0:F1}m", depth);
         }
     }
 
@@ -381,7 +444,7 @@ public class UIManager : MonoBehaviour
     {
         if (upgradeMoneyText != null && GameManager.instance != null)
         {
-            upgradeMoneyText.text = $"${GameManager.instance.money}";
+            upgradeMoneyText.SetText("${0}", GameManager.instance.money);
         }
 
         // Misina Geliştirmelerini Göster
@@ -463,6 +526,8 @@ public class UIManager : MonoBehaviour
         GameObject iconObj = new GameObject("Icon");
         iconObj.transform.SetParent(card.transform, false);
         TextMeshProUGUI iconTxt = iconObj.AddComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            iconTxt.font = TMP_Settings.defaultFontAsset;
         iconTxt.text = icon;
         iconTxt.fontSize = 28;
         iconTxt.alignment = TextAlignmentOptions.Center;
@@ -474,6 +539,8 @@ public class UIManager : MonoBehaviour
         GameObject infoObj = new GameObject("Info");
         infoObj.transform.SetParent(card.transform, false);
         TextMeshProUGUI infoTxt = infoObj.AddComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            infoTxt.font = TMP_Settings.defaultFontAsset;
         
         int level = UpgradeManager.instance.GetLevel(type);
         float value = UpgradeManager.instance.GetValue(type);
@@ -516,6 +583,8 @@ public class UIManager : MonoBehaviour
         GameObject btnTxtObj = new GameObject("Text");
         btnTxtObj.transform.SetParent(btnObj.transform, false);
         TextMeshProUGUI btnTxt = btnTxtObj.AddComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            btnTxt.font = TMP_Settings.defaultFontAsset;
         btnTxt.text = isMaxed ? "MAX" : $"${cost}";
         btnTxt.fontSize = 14;
         btnTxt.alignment = TextAlignmentOptions.Center;
@@ -543,21 +612,25 @@ public class UIManager : MonoBehaviour
         {
             btn.interactable = false;
         }
+
+        // Kart içindeki tüm TMP yazılarını seçili fontla güncelle
+        if (GameManager.instance != null)
+            GameManager.instance.ApplyFont(card);
     }
 
     void RefreshStatsUI()
     {
         if (totalFishText != null)
-            totalFishText.text = $"🐟 Balık: {totalFishCaught}";
+            totalFishText.SetText("Balik: {0}", totalFishCaught);
         
         if (totalMoneyEarnedText != null)
-            totalMoneyEarnedText.text = $"💰 Kazanç: ${totalMoneyEarned}";
+            totalMoneyEarnedText.SetText("Kazanc: ${0}", totalMoneyEarned);
         
         if (playTimeText != null)
         {
             int minutes = Mathf.FloorToInt(playTime / 60);
             int seconds = Mathf.FloorToInt(playTime % 60);
-            playTimeText.text = $"⏱️ Oynama Süresi: {minutes}:{seconds:00}";
+            playTimeText.SetText("Oynama Suresi: {0}:{1:00}", minutes, seconds);
         }
     }
 
@@ -565,24 +638,25 @@ public class UIManager : MonoBehaviour
     {
         totalFishCaught++;
         totalMoneyEarned += value;
-        SaveStats();
+        statsDirty = true;
+        FlushStatsIfDue();
 
         if (fishCountText != null)
-            fishCountText.text = $"🐟 x {totalFishCaught}";
+            fishCountText.SetText("x {0}", totalFishCaught);
     }
 
-    void SaveStats()
+    void SaveStatsInternal()
     {
-        PlayerPrefs.SetInt("TotalFishCaught", totalFishCaught);
-        PlayerPrefs.SetInt("TotalMoneyEarned", totalMoneyEarned);
-        PlayerPrefs.SetFloat("PlayTime", playTime);
+        PlayerPrefs.SetInt(PREF_TOTAL_FISH_CAUGHT, totalFishCaught);
+        PlayerPrefs.SetInt(PREF_TOTAL_MONEY_EARNED, totalMoneyEarned);
+        PlayerPrefs.SetFloat(PREF_PLAY_TIME, playTime);
         PlayerPrefs.Save();
     }
 
     void LoadStats()
     {
-        totalFishCaught = PlayerPrefs.GetInt("TotalFishCaught", 0);
-        totalMoneyEarned = PlayerPrefs.GetInt("TotalMoneyEarned", 0);
-        playTime = PlayerPrefs.GetFloat("PlayTime", 0f);
+        totalFishCaught = PlayerPrefs.GetInt(PREF_TOTAL_FISH_CAUGHT, 0);
+        totalMoneyEarned = PlayerPrefs.GetInt(PREF_TOTAL_MONEY_EARNED, 0);
+        playTime = PlayerPrefs.GetFloat(PREF_PLAY_TIME, 0f);
     }
 }

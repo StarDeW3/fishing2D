@@ -9,6 +9,25 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
 
+    private const string PREF_MONEY = "Money";
+    private const string PREF_FIRST_START = "FirstStart";
+    private const string PREF_SELECTED_FONT = "SelectedFont";
+    private const string PREF_PENDING_AUTOSTART = "PendingAutoStart";
+
+    [System.Flags]
+    private enum PauseSource
+    {
+        None = 0,
+        MainMenu = 1 << 0,
+        PauseMenu = 1 << 1,
+        Shop = 1 << 2,
+        UIPanel = 1 << 3,
+        GameOver = 1 << 4,
+    }
+
+    private PauseSource pauseMask = PauseSource.None;
+    private int uiPauseRequests = 0;
+
     [Header("UI Referansları")]
     public TextMeshProUGUI moneyText; // Score yerine Money
     public TextMeshProUGUI timeText;
@@ -31,66 +50,286 @@ public class GameManager : MonoBehaviour
     public bool isFirstStart = true;
 
     private DayNightCycle dayNightCycle;
+    private FishSpawner cachedFishSpawner;
     private Coroutine feedbackCoroutine;
     private int lastMinute = -1;
 
+    private float nextDayNightSearchTime = 0f;
+    private const float DAYNIGHT_SEARCH_INTERVAL = 1f;
+
+    private bool autoStartGameOnLoad = false;
+
+    private Transform cachedCanvasTransform;
+
+    private static void StretchToFill(RectTransform rectTransform)
+    {
+        rectTransform.anchorMin = Vector2.zero;
+        rectTransform.anchorMax = Vector2.one;
+        rectTransform.offsetMin = Vector2.zero;
+        rectTransform.offsetMax = Vector2.zero;
+    }
+
+    private TextMeshProUGUI CreateStretchedLabel(Transform parent, string name, string text, float fontSize, Color color,
+        TextAlignmentOptions alignment = TextAlignmentOptions.Center,
+        FontStyles fontStyle = FontStyles.Bold)
+    {
+        GameObject textObj = new GameObject(name);
+        textObj.transform.SetParent(parent, false);
+        TextMeshProUGUI tmp = textObj.AddComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = fontSize;
+        tmp.color = color;
+        tmp.alignment = alignment;
+        tmp.fontStyle = fontStyle;
+
+        StretchToFill(tmp.rectTransform);
+        return tmp;
+    }
+
+    private static GameObject CreateImagePanel(string name, Transform parent, Color bgColor,
+        Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        GameObject panel = new GameObject(name);
+        panel.transform.SetParent(parent, false);
+        Image img = panel.AddComponent<Image>();
+        img.color = bgColor;
+
+        RectTransform rect = panel.GetComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = sizeDelta;
+        return panel;
+    }
+
+    private static void AddOutline(GameObject target, Color effectColor, Vector2 effectDistance)
+    {
+        Outline outline = target.AddComponent<Outline>();
+        outline.effectColor = effectColor;
+        outline.effectDistance = effectDistance;
+    }
+
+    private static TextMeshProUGUI CreateTMPTextObject(string name, Transform parent)
+    {
+        GameObject obj = new GameObject(name);
+        obj.transform.SetParent(parent, false);
+        return obj.AddComponent<TextMeshProUGUI>();
+    }
+
+    private Transform GetCanvasTransform()
+    {
+        if (cachedCanvasTransform != null) return cachedCanvasTransform;
+
+        // İsimle aramak kırılgan; önce sahnedeki Canvas'ı bul.
+        Canvas c = FindFirstObjectByType<Canvas>();
+        if (c != null)
+            cachedCanvasTransform = c.transform;
+        else
+            cachedCanvasTransform = null;
+
+        return cachedCanvasTransform;
+    }
+
+    public Transform CanvasTransform => GetCanvasTransform();
+
     void Awake()
     {
-        if (instance == null) instance = this;
-        else Destroy(gameObject);
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
 
         // Para Yükle
-        money = PlayerPrefs.GetInt("Money", 0);
-        isFirstStart = PlayerPrefs.GetInt("FirstStart", 1) == 1;
-        currentFontIndex = PlayerPrefs.GetInt("SelectedFont", 0);
+        money = PlayerPrefs.GetInt(PREF_MONEY, 0);
+        isFirstStart = PlayerPrefs.GetInt(PREF_FIRST_START, 1) == 1;
+        currentFontIndex = PlayerPrefs.GetInt(PREF_SELECTED_FONT, 0);
+
+        autoStartGameOnLoad = PlayerPrefs.GetInt(PREF_PENDING_AUTOSTART, 0) == 1;
+        if (autoStartGameOnLoad)
+        {
+            PlayerPrefs.DeleteKey(PREF_PENDING_AUTOSTART);
+            PlayerPrefs.Save();
+        }
+
+        EnsureUIFontSetup();
 
         CreateUI();
         CreateMainMenu();
         
         // FishingMiniGame'i kontrol et ve ekle
-        if (FindFirstObjectByType<FishingMiniGame>() == null)
+        if (FishingMiniGame.instance == null)
         {
             gameObject.AddComponent<FishingMiniGame>();
         }
         
         // UpgradeManager kontrolü
-        if (FindFirstObjectByType<UpgradeManager>() == null)
+        if (UpgradeManager.instance == null)
         {
             gameObject.AddComponent<UpgradeManager>();
         }
         
         // UIManager kontrolü
-        if (FindFirstObjectByType<UIManager>() == null)
+        if (UIManager.instance == null)
         {
             gameObject.AddComponent<UIManager>();
         }
         
-        // Oyunu başlat (menü gösterilecek)
-        Time.timeScale = 0f;
-        isGameActive = false;
+        if (autoStartGameOnLoad)
+        {
+            StartGame(false);
+        }
+        else
+        {
+            // Oyunu başlat (menü gösterilecek)
+            isGameActive = false;
+            SetPause(PauseSource.MainMenu, true);
+        }
+    }
+
+    private static void ResetProgressPrefs()
+    {
+        PlayerPrefs.SetInt(PREF_MONEY, 0);
+
+        // Upgrade seviyelerini sıfırla
+        foreach (UpgradeType type in System.Enum.GetValues(typeof(UpgradeType)))
+            PlayerPrefs.DeleteKey("Upgrade_" + type);
+
+        // Not: UI font seçimi ve istatistikler (TotalFishCaught/PlayTime) burada bilinçli olarak korunuyor.
+        // New Game = ilerleme sıfırlama; ayarlar/lifetime stats resetlemek istenirse buraya eklenebilir.
+
+        PlayerPrefs.Save();
+    }
+
+    private void ApplyPauseState()
+    {
+        isPaused = pauseMask != PauseSource.None;
+        Time.timeScale = isPaused ? 0f : 1f;
+    }
+
+    private void SetPause(PauseSource source, bool enabled)
+    {
+        if (enabled)
+            pauseMask |= source;
+        else
+            pauseMask &= ~source;
+
+        ApplyPauseState();
+
+        // UI panellerinin görünürlüğünü pause kaynaklarına göre senkronla
+        if (pausePanel != null)
+            pausePanel.SetActive((pauseMask & PauseSource.PauseMenu) != 0);
+    }
+
+    public void PushUIPause()
+    {
+        uiPauseRequests++;
+        if (uiPauseRequests < 1) uiPauseRequests = 1;
+        SetPause(PauseSource.UIPanel, true);
+    }
+
+    public void PopUIPause()
+    {
+        uiPauseRequests--;
+        if (uiPauseRequests < 0) uiPauseRequests = 0;
+        if (uiPauseRequests == 0)
+            SetPause(PauseSource.UIPanel, false);
+    }
+
+    void EnsureUIFontSetup()
+    {
+        // Pixelify Sans'i TMP Settings üzerinden default font olarak kullanacağız.
+        // gameFonts listesinin 0. elemanı Pixelify SDF ise onu seçer, yoksa TMP default'a düşer.
+        if (gameFonts == null) gameFonts = new List<TMP_FontAsset>();
+
+        TMP_FontAsset selected = null;
+        if (gameFonts.Count > 0)
+        {
+            if (currentFontIndex < 0 || currentFontIndex >= gameFonts.Count)
+                currentFontIndex = 0;
+            selected = gameFonts[currentFontIndex];
+        }
+        else
+        {
+            selected = TMP_Settings.defaultFontAsset;
+        }
+
+        if (selected != null)
+        {
+            // Point filter: piksel fontların bulanık çıkmasını engeller
+            if (selected.atlasTextures != null)
+            {
+                for (int i = 0; i < selected.atlasTextures.Length; i++)
+                {
+                    var tex = selected.atlasTextures[i];
+                    if (tex != null) tex.filterMode = FilterMode.Point;
+                }
+            }
+
+            if (selected.material != null && selected.material.mainTexture != null)
+                selected.material.mainTexture.filterMode = FilterMode.Point;
+
+            TMP_Settings.defaultFontAsset = selected;
+        }
+
+        // Fallback listesini temizle (Pixelify görünümünü bozmasın)
+        TMP_Settings.fallbackFontAssets = new List<TMP_FontAsset>();
+
+        // Liste boşsa seçilmiş fontu ekle
+        if (gameFonts.Count == 0)
+        {
+            if (selected != null)
+            {
+                gameFonts.Add(selected);
+                currentFontIndex = 0;
+                PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
+                PlayerPrefs.Save();
+            }
+            return;
+        }
+
+        // Seçili font listede varsa indeksi ona çek
+        if (selected != null)
+        {
+            int idx = gameFonts.IndexOf(selected);
+            if (idx >= 0)
+            {
+                currentFontIndex = idx;
+                PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
+                PlayerPrefs.Save();
+            }
+        }
+
+        // Geçersiz indeksleri düzelt
+        if (currentFontIndex < 0 || currentFontIndex >= gameFonts.Count)
+        {
+            currentFontIndex = 0;
+            PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
+            PlayerPrefs.Save();
+        }
     }
 
     void CreateUI()
     {
         // 1. Canvas Oluştur (Eğer yoksa)
-        GameObject canvasObj = GameObject.Find("Canvas");
-        Canvas canvas;
-        if (canvasObj == null)
+        Canvas canvas = FindFirstObjectByType<Canvas>();
+        if (canvas == null)
         {
-            canvasObj = new GameObject("Canvas");
+            GameObject canvasObj = new GameObject("Canvas");
             canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            
+
             CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
-            
+
             canvasObj.AddComponent<GraphicRaycaster>();
         }
         else
         {
-            canvas = canvasObj.GetComponent<Canvas>();
-            
             // Eski UI objelerini temizle (sahneye kaydedilmiş olabilirler)
             CleanupOldUI(canvas.transform, "MoneyPanel");
             CleanupOldUI(canvas.transform, "MoneyText");
@@ -107,6 +346,9 @@ public class GameManager : MonoBehaviour
             CleanupOldUI(canvas.transform, "FishingMiniGamePanel");
         }
 
+        // Cache canvas transform for later UI creation
+        cachedCanvasTransform = canvas != null ? canvas.transform : null;
+
         // Referansları sıfırla
         moneyText = null;
         timeText = null;
@@ -118,34 +360,23 @@ public class GameManager : MonoBehaviour
         // 2. Money Panel - Modern glass efekti
         if (moneyText == null)
         {
-            // Panel arkaplanı
-            GameObject moneyPanel = new GameObject("MoneyPanel");
-            moneyPanel.transform.SetParent(canvas.transform, false);
-            Image panelBg = moneyPanel.AddComponent<Image>();
-            panelBg.color = new Color(0.08f, 0.12f, 0.18f, 0.85f);
-            
-            RectTransform panelRect = moneyPanel.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0, 1);
-            panelRect.anchorMax = new Vector2(0, 1);
-            panelRect.pivot = new Vector2(0, 1);
-            panelRect.anchoredPosition = new Vector2(20, -20);
-            panelRect.sizeDelta = new Vector2(200, 50);
-            
-            // Gradient border efekti
-            Outline panelOutline = moneyPanel.AddComponent<Outline>();
-            panelOutline.effectColor = new Color(0.3f, 0.8f, 0.4f, 0.5f);
-            panelOutline.effectDistance = new Vector2(2, -2);
-            
-            // Money Text
-            GameObject scoreObj = new GameObject("MoneyText");
-            scoreObj.transform.SetParent(moneyPanel.transform, false);
-            moneyText = scoreObj.AddComponent<TextMeshProUGUI>();
+            GameObject moneyPanel = CreateImagePanel(
+                "MoneyPanel",
+                canvas.transform,
+                new Color(0.08f, 0.12f, 0.18f, 0.85f),
+                new Vector2(0, 1),
+                new Vector2(0, 1),
+                new Vector2(0, 1),
+                new Vector2(20, -20),
+                new Vector2(200, 50));
+
+            moneyText = CreateTMPTextObject("MoneyText", moneyPanel.transform);
             
             moneyText.fontSize = 32;
             moneyText.color = new Color(0.5f, 1f, 0.5f);
             moneyText.alignment = TextAlignmentOptions.Center;
             moneyText.fontStyle = FontStyles.Bold;
-            moneyText.outlineWidth = 0.1f;
+            moneyText.outlineWidth = 0.05f;
             moneyText.outlineColor = new Color(0, 0, 0, 0.6f);
             
             ApplyFont(moneyPanel);
@@ -162,33 +393,23 @@ public class GameManager : MonoBehaviour
         // 3. Time Panel - Modern glass efekti
         if (timeText == null)
         {
-            // Panel arkaplanı
-            GameObject timePanel = new GameObject("TimePanel");
-            timePanel.transform.SetParent(canvas.transform, false);
-            Image timePanelBg = timePanel.AddComponent<Image>();
-            timePanelBg.color = new Color(0.08f, 0.12f, 0.18f, 0.85f);
-            
-            RectTransform timePanelRect = timePanel.GetComponent<RectTransform>();
-            timePanelRect.anchorMin = new Vector2(1, 1);
-            timePanelRect.anchorMax = new Vector2(1, 1);
-            timePanelRect.pivot = new Vector2(1, 1);
-            timePanelRect.anchoredPosition = new Vector2(-20, -20);
-            timePanelRect.sizeDelta = new Vector2(120, 50);
-            
-            Outline timeOutline = timePanel.AddComponent<Outline>();
-            timeOutline.effectColor = new Color(0.4f, 0.6f, 1f, 0.5f);
-            timeOutline.effectDistance = new Vector2(-2, -2);
-            
-            // Time Text
-            GameObject timeObj = new GameObject("TimeText");
-            timeObj.transform.SetParent(timePanel.transform, false);
-            timeText = timeObj.AddComponent<TextMeshProUGUI>();
+            GameObject timePanel = CreateImagePanel(
+                "TimePanel",
+                canvas.transform,
+                new Color(0.08f, 0.12f, 0.18f, 0.85f),
+                new Vector2(1, 1),
+                new Vector2(1, 1),
+                new Vector2(1, 1),
+                new Vector2(-20, -20),
+                new Vector2(120, 50));
+
+            timeText = CreateTMPTextObject("TimeText", timePanel.transform);
 
             timeText.fontSize = 28;
             timeText.color = Color.white;
             timeText.alignment = TextAlignmentOptions.Center;
             timeText.fontStyle = FontStyles.Bold;
-            timeText.outlineWidth = 0.1f;
+            timeText.outlineWidth = 0.05f;
             timeText.outlineColor = new Color(0, 0, 0, 0.6f);
 
             ApplyFont(timePanel);
@@ -211,15 +432,15 @@ public class GameManager : MonoBehaviour
             feedbackText.color = new Color(1f, 0.9f, 0.4f);
             feedbackText.alignment = TextAlignmentOptions.Center;
             feedbackText.fontStyle = FontStyles.Bold;
-            feedbackText.outlineWidth = 0.1f;
+            feedbackText.outlineWidth = 0.05f;
             feedbackText.outlineColor = new Color(0, 0, 0, 0.7f);
             
             RectTransform rect = feedbackText.rectTransform;
             rect.anchorMin = new Vector2(0.5f, 1);
             rect.anchorMax = new Vector2(0.5f, 1);
             rect.pivot = new Vector2(0.5f, 1);
-            rect.anchoredPosition = new Vector2(0, -80);
-            rect.sizeDelta = new Vector2(400, 40);
+            rect.anchoredPosition = new Vector2(0, -120);
+            rect.sizeDelta = new Vector2(520, 90);
             
             feedbackText.gameObject.SetActive(false);
         }
@@ -324,21 +545,8 @@ public class GameManager : MonoBehaviour
             btnRect.pivot = new Vector2(0.5f, 0);
             btnRect.anchoredPosition = new Vector2(0, 25);
             btnRect.sizeDelta = new Vector2(180, 50);
-            
-            GameObject btnTextObj = new GameObject("Text");
-            btnTextObj.transform.SetParent(btnObj.transform, false);
-            TextMeshProUGUI btnText = btnTextObj.AddComponent<TextMeshProUGUI>();
-            btnText.text = "YENIDEN";
-            btnText.fontSize = 22;
-            btnText.color = Color.white;
-            btnText.alignment = TextAlignmentOptions.Center;
-            btnText.fontStyle = FontStyles.Bold;
-            
-            RectTransform btnTextRect = btnText.GetComponent<RectTransform>();
-            btnTextRect.anchorMin = Vector2.zero;
-            btnTextRect.anchorMax = Vector2.one;
-            btnTextRect.offsetMin = Vector2.zero;
-            btnTextRect.offsetMax = Vector2.zero;
+
+            CreateStretchedLabel(btnObj.transform, "Text", "YENIDEN", 22, Color.white);
 
             btn.onClick.AddListener(RestartGame);
 
@@ -349,11 +557,11 @@ public class GameManager : MonoBehaviour
     
     void CreateMainMenu()
     {
-        GameObject canvasObj = GameObject.Find("Canvas");
-        if (canvasObj == null) return;
+        Transform canvasTr = GetCanvasTransform();
+        if (canvasTr == null) return;
         
         mainMenuPanel = new GameObject("MainMenuPanel");
-        mainMenuPanel.transform.SetParent(canvasObj.transform, false);
+        mainMenuPanel.transform.SetParent(canvasTr, false);
         
         // Tam ekran arkaplan
         Image bg = mainMenuPanel.AddComponent<Image>();
@@ -384,7 +592,7 @@ public class GameManager : MonoBehaviour
         title.color = new Color(0.3f, 0.8f, 1f);
         title.alignment = TextAlignmentOptions.Center;
         title.fontStyle = FontStyles.Bold;
-        title.outlineWidth = 0.1f;
+        title.outlineWidth = 0.05f;
         title.outlineColor = new Color(0, 0.2f, 0.4f);
         RectTransform titleRect = title.rectTransform;
         titleRect.anchorMin = new Vector2(0, 1);
@@ -412,7 +620,7 @@ public class GameManager : MonoBehaviour
         GameObject moneyInfoObj = new GameObject("MoneyInfo");
         moneyInfoObj.transform.SetParent(content.transform, false);
         TextMeshProUGUI moneyInfo = moneyInfoObj.AddComponent<TextMeshProUGUI>();
-        moneyInfo.text = $"Toplam Para: ${money}";
+        moneyInfo.SetText("Toplam Para: ${0}", money);
         moneyInfo.fontSize = 22;
         moneyInfo.color = new Color(0.5f, 1f, 0.5f);
         moneyInfo.alignment = TextAlignmentOptions.Center;
@@ -481,20 +689,8 @@ public class GameManager : MonoBehaviour
         btnRect.pivot = new Vector2(0.5f, 1);
         btnRect.anchoredPosition = position;
         btnRect.sizeDelta = new Vector2(280, 55);
-        
-        GameObject txtObj = new GameObject("Text");
-        txtObj.transform.SetParent(btnObj.transform, false);
-        TextMeshProUGUI txt = txtObj.AddComponent<TextMeshProUGUI>();
-        txt.text = text;
-        txt.fontSize = 24;
-        txt.color = Color.white;
-        txt.alignment = TextAlignmentOptions.Center;
-        txt.fontStyle = FontStyles.Bold;
-        RectTransform txtRect = txt.rectTransform;
-        txtRect.anchorMin = Vector2.zero;
-        txtRect.anchorMax = Vector2.one;
-        txtRect.offsetMin = Vector2.zero;
-        txtRect.offsetMax = Vector2.zero;
+
+        CreateStretchedLabel(btnObj.transform, "Text", text, 24, Color.white);
         
         btn.onClick.AddListener(action);
     }
@@ -529,7 +725,7 @@ public class GameManager : MonoBehaviour
         GameObject warnObj = new GameObject("Warning");
         warnObj.transform.SetParent(confirmPanel.transform, false);
         TextMeshProUGUI warn = warnObj.AddComponent<TextMeshProUGUI>();
-        warn.text = $"DIKKAT!\n\nTum ilerlemeniz silinecek!\n(${money} para kaybedilecek)";
+        warn.SetText("DIKKAT!\n\nTum ilerlemeniz silinecek!\n(${0} para kaybedilecek)", money);
         warn.fontSize = 20;
         warn.color = new Color(1f, 0.8f, 0.4f);
         warn.alignment = TextAlignmentOptions.Center;
@@ -551,20 +747,8 @@ public class GameManager : MonoBehaviour
         yesRect.pivot = new Vector2(0, 0);
         yesRect.anchoredPosition = new Vector2(20, 20);
         yesRect.sizeDelta = new Vector2(-30, 50);
-        
-        GameObject yesTxt = new GameObject("Text");
-        yesTxt.transform.SetParent(yesBtn.transform, false);
-        TextMeshProUGUI yesTxtComp = yesTxt.AddComponent<TextMeshProUGUI>();
-        yesTxtComp.text = "EVET, SIL";
-        yesTxtComp.fontSize = 18;
-        yesTxtComp.color = Color.white;
-        yesTxtComp.alignment = TextAlignmentOptions.Center;
-        yesTxtComp.fontStyle = FontStyles.Bold;
-        RectTransform yesTxtRect = yesTxtComp.rectTransform;
-        yesTxtRect.anchorMin = Vector2.zero;
-        yesTxtRect.anchorMax = Vector2.one;
-        yesTxtRect.offsetMin = Vector2.zero;
-        yesTxtRect.offsetMax = Vector2.zero;
+
+        CreateStretchedLabel(yesBtn.transform, "Text", "EVET, SIL", 18, Color.white);
         
         yesBtnComp.onClick.AddListener(() => {
             Destroy(confirmPanel);
@@ -583,20 +767,8 @@ public class GameManager : MonoBehaviour
         noRect.pivot = new Vector2(1, 0);
         noRect.anchoredPosition = new Vector2(-20, 20);
         noRect.sizeDelta = new Vector2(-30, 50);
-        
-        GameObject noTxt = new GameObject("Text");
-        noTxt.transform.SetParent(noBtn.transform, false);
-        TextMeshProUGUI noTxtComp = noTxt.AddComponent<TextMeshProUGUI>();
-        noTxtComp.text = "VAZGEC";
-        noTxtComp.fontSize = 18;
-        noTxtComp.color = Color.white;
-        noTxtComp.alignment = TextAlignmentOptions.Center;
-        noTxtComp.fontStyle = FontStyles.Bold;
-        RectTransform noTxtRect = noTxtComp.rectTransform;
-        noTxtRect.anchorMin = Vector2.zero;
-        noTxtRect.anchorMax = Vector2.one;
-        noTxtRect.offsetMin = Vector2.zero;
-        noTxtRect.offsetMax = Vector2.zero;
+
+        CreateStretchedLabel(noBtn.transform, "Text", "VAZGEC", 18, Color.white);
         
         noBtnComp.onClick.AddListener(() => Destroy(confirmPanel));
     }
@@ -605,22 +777,17 @@ public class GameManager : MonoBehaviour
     {
         if (newGame)
         {
-            // Tüm verileri sıfırla
-            PlayerPrefs.DeleteAll();
+            ResetProgressPrefs();
             money = 0;
-            PlayerPrefs.SetInt("FirstStart", 0);
+
+            // Scene reload sonrası otomatik başlat
+            PlayerPrefs.SetInt(PREF_PENDING_AUTOSTART, 1);
             PlayerPrefs.Save();
-            
-            // Upgrade seviyelerini sıfırla
-            if (UpgradeManager.instance != null)
-            {
-                // UpgradeManager'ı yeniden yükle
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-                return;
-            }
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            return;
         }
-        
-        PlayerPrefs.SetInt("FirstStart", 0);
+
+        PlayerPrefs.SetInt(PREF_FIRST_START, 0);
         PlayerPrefs.Save();
         
         // Menüyü kapat
@@ -630,7 +797,13 @@ public class GameManager : MonoBehaviour
         // Oyunu başlat
         isGameActive = true;
         isFirstStart = false;
-        Time.timeScale = 1f;
+        // Başlarken tüm pause kaynaklarını temizle
+        pauseMask = PauseSource.None;
+        uiPauseRequests = 0;
+        ApplyPauseState();
+
+        if (pausePanel != null) pausePanel.SetActive(false);
+        if (shopPanel != null) shopPanel.SetActive(false);
         
         UpdateMoneyUI();
     }
@@ -638,36 +811,54 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         dayNightCycle = FindFirstObjectByType<DayNightCycle>();
+        cachedFishSpawner = FindFirstObjectByType<FishSpawner>();
         UpdateMoneyUI();
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         if (pausePanel != null) pausePanel.SetActive(false);
         
         // Ana menüyü göster
-        if (mainMenuPanel != null)
+        if (!isGameActive && mainMenuPanel != null)
             mainMenuPanel.SetActive(true);
         
         // Shop UI oluştur (Basitçe)
         CreateShopUI();
+
+        // Sahnedeki tüm TMP metinlerini Pixelify ile eşitle
+        ApplyFontToAll();
     }
 
     void Update()
     {
-        // Pause Kontrolü (P veya ESC tuşu)
-        if (UnityEngine.InputSystem.Keyboard.current != null && 
-           (UnityEngine.InputSystem.Keyboard.current.pKey.wasPressedThisFrame || 
-            UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame))
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        if (kb != null)
         {
-            TogglePause();
-        }
-        
-        // Shop Kontrolü (B tuşu - Buy)
-        if (UnityEngine.InputSystem.Keyboard.current != null && 
-            UnityEngine.InputSystem.Keyboard.current.bKey.wasPressedThisFrame)
-        {
-            ToggleShop();
+            // Pause Kontrolü (P veya ESC tuşu)
+            if (kb.pKey.wasPressedThisFrame || kb.escapeKey.wasPressedThisFrame)
+            {
+                // Allow closing pause menu anytime, but only allow opening while game is active.
+                if ((pauseMask & PauseSource.PauseMenu) != 0 || isGameActive)
+                    TogglePause();
+            }
+
+            // Shop Kontrolü (B tuşu - Buy)
+            if (kb.bKey.wasPressedThisFrame)
+            {
+                // Allow closing shop anytime, but only allow opening while game is active and not otherwise paused.
+                bool shopIsOpen = shopPanel != null && shopPanel.activeSelf;
+                if (shopIsOpen || (isGameActive && !isPaused))
+                    ToggleShop();
+            }
         }
 
         if (!isGameActive || isPaused) return;
+
+        // DayNightCycle sahnede sonradan oluşabilir ya da scene reload ile değişebilir.
+        if (dayNightCycle == null && Time.unscaledTime >= nextDayNightSearchTime)
+        {
+            nextDayNightSearchTime = Time.unscaledTime + DAYNIGHT_SEARCH_INTERVAL;
+            dayNightCycle = FindFirstObjectByType<DayNightCycle>();
+            lastMinute = -1; // Reacquire sonrası saat yazısını yenile
+        }
 
         // Saati göster (DayNightCycle'dan alıp)
         if (dayNightCycle != null && timeText != null)
@@ -704,7 +895,7 @@ public class GameManager : MonoBehaviour
         feedbackText.color = color;
         feedbackText.gameObject.SetActive(true);
         feedbackText.alpha = 1f;
-        feedbackText.rectTransform.anchoredPosition = new Vector2(0, 100); // Reset position
+        feedbackText.rectTransform.anchoredPosition = new Vector2(0, -120); // Reset position (screen-visible)
 
         float timer = 2f;
         while (timer > 0)
@@ -726,7 +917,7 @@ public class GameManager : MonoBehaviour
     public void AddMoney(int amount)
     {
         money += amount;
-        PlayerPrefs.SetInt("Money", money);
+        PlayerPrefs.SetInt(PREF_MONEY, money);
         PlayerPrefs.Save();
         
         // Efekt (Para rengi)
@@ -740,7 +931,7 @@ public class GameManager : MonoBehaviour
         if (money >= amount)
         {
             money -= amount;
-            PlayerPrefs.SetInt("Money", money);
+            PlayerPrefs.SetInt(PREF_MONEY, money);
             PlayerPrefs.Save();
             UpdateMoneyUI();
             return true;
@@ -761,34 +952,24 @@ public class GameManager : MonoBehaviour
         {
             gameOverPanel.SetActive(true);
             if (finalScoreText != null)
-                finalScoreText.text = "Total Money: $" + money;
+                finalScoreText.SetText("Total Money: ${0}", money);
         }
-        
-        // Oyunu durdurmak istersen:
-        Time.timeScale = 0f; 
+
+        SetPause(PauseSource.GameOver, true);
     }
 
     public void RestartGame()
     {
-        Time.timeScale = 1f;
+        pauseMask = PauseSource.None;
+        uiPauseRequests = 0;
+        ApplyPauseState();
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     public void TogglePause()
     {
-        isPaused = !isPaused;
-        Time.timeScale = isPaused ? 0f : 1f;
-        
-        if (pausePanel != null)
-        {
-            pausePanel.SetActive(isPaused);
-        }
-        
-        // Shop açıksa kapat
-        if (shopPanel != null && shopPanel.activeSelf && !isPaused)
-        {
-            shopPanel.SetActive(false);
-        }
+        bool enablePauseMenu = (pauseMask & PauseSource.PauseMenu) == 0;
+        SetPause(PauseSource.PauseMenu, enablePauseMenu);
     }
     
     public void ToggleShop()
@@ -797,10 +978,9 @@ public class GameManager : MonoBehaviour
         
         bool isActive = !shopPanel.activeSelf;
         shopPanel.SetActive(isActive);
-        
-        // Shop açılınca oyunu durdur
-        isPaused = isActive;
-        Time.timeScale = isPaused ? 0f : 1f;
+
+        // Shop açıkken oyunu durdur (PauseMenu gibi ayrı bir kaynak)
+        SetPause(PauseSource.Shop, isActive);
         
         if (isActive) UpdateShopUI();
     }
@@ -808,12 +988,12 @@ public class GameManager : MonoBehaviour
     void CreateShopUI()
     {
         if (shopPanel != null) return;
-        
-        GameObject canvasObj = GameObject.Find("Canvas");
-        if (canvasObj == null) return;
+
+        Transform canvasTr = GetCanvasTransform();
+        if (canvasTr == null) return;
         
         shopPanel = new GameObject("ShopPanel");
-        shopPanel.transform.SetParent(canvasObj.transform, false);
+        shopPanel.transform.SetParent(canvasTr, false);
         
         // Arkaplan - Ortada geniş panel
         Image bg = shopPanel.AddComponent<Image>();
@@ -825,11 +1005,6 @@ public class GameManager : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = Vector2.zero;
         rect.sizeDelta = new Vector2(700, 500);
-        
-        // Modern kenar efekti
-        Outline shopOutline = shopPanel.AddComponent<Outline>();
-        shopOutline.effectColor = new Color(0.2f, 0.5f, 0.8f, 0.6f);
-        shopOutline.effectDistance = new Vector2(3, -3);
         
         // Başlık Bar
         GameObject titleBar = new GameObject("TitleBar");
@@ -871,19 +1046,8 @@ public class GameManager : MonoBehaviour
         closeBtnRect.anchoredPosition = new Vector2(-10, 0);
         closeBtnRect.sizeDelta = new Vector2(30, 30);
         closeBtn.onClick.AddListener(ToggleShop);
-        
-        GameObject closeTxtObj = new GameObject("Text");
-        closeTxtObj.transform.SetParent(closeBtnObj.transform, false);
-        TextMeshProUGUI closeTxt = closeTxtObj.AddComponent<TextMeshProUGUI>();
-        closeTxt.text = "✕";
-        closeTxt.fontSize = 18;
-        closeTxt.alignment = TextAlignmentOptions.Center;
-        closeTxt.color = Color.white;
-        RectTransform closeTxtRect = closeTxt.rectTransform;
-        closeTxtRect.anchorMin = Vector2.zero;
-        closeTxtRect.anchorMax = Vector2.one;
-        closeTxtRect.offsetMin = Vector2.zero;
-        closeTxtRect.offsetMax = Vector2.zero;
+
+        CreateStretchedLabel(closeBtnObj.transform, "Text", "X", 18, Color.white, TextAlignmentOptions.Center, FontStyles.Normal);
         
         // Tab Butonları
         CreateShopTabs(shopPanel.transform);
@@ -978,20 +1142,14 @@ public class GameManager : MonoBehaviour
             Button btn = tabBtn.AddComponent<Button>();
             Image btnImg = tabBtn.AddComponent<Image>();
             btnImg.color = (i == currentShopTab) ? new Color(0.15f, 0.3f, 0.5f) : new Color(0.1f, 0.12f, 0.18f);
-            
-            GameObject tabTxt = new GameObject("Text");
-            tabTxt.transform.SetParent(tabBtn.transform, false);
-            TextMeshProUGUI txt = tabTxt.AddComponent<TextMeshProUGUI>();
-            txt.text = tabNames[i];
-            txt.fontSize = 14;
-            txt.alignment = TextAlignmentOptions.Center;
+
+            TextMeshProUGUI txt = CreateStretchedLabel(
+                tabBtn.transform,
+                "Text",
+                tabNames[i],
+                14,
+                (i == currentShopTab) ? Color.white : new Color(0.6f, 0.6f, 0.6f));
             txt.fontStyle = FontStyles.Bold;
-            txt.color = (i == currentShopTab) ? Color.white : new Color(0.6f, 0.6f, 0.6f);
-            RectTransform txtRect = txt.rectTransform;
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.offsetMin = Vector2.zero;
-            txtRect.offsetMax = Vector2.zero;
             
             btn.onClick.AddListener(() => {
                 currentShopTab = tabIndex;
@@ -1230,7 +1388,12 @@ public class GameManager : MonoBehaviour
         
         // Balık listesini al ve sırala
         List<FishType> fishList = new List<FishType>();
-        FishSpawner spawner = FindFirstObjectByType<FishSpawner>();
+        FishSpawner spawner = cachedFishSpawner;
+        if (spawner == null)
+        {
+            spawner = FindFirstObjectByType<FishSpawner>();
+            cachedFishSpawner = spawner;
+        }
         
         if (spawner != null && spawner.fishTypes != null && spawner.fishTypes.Count > 0)
         {
@@ -1363,7 +1526,10 @@ public class GameManager : MonoBehaviour
     void CleanupOldUI(Transform parent, string objName)
     {
         Transform old = parent.Find(objName);
-        if (old != null) DestroyImmediate(old.gameObject);
+        if (old == null) return;
+
+        // Runtime UI cleanup; avoid DestroyImmediate to keep behavior safe/consistent.
+        Destroy(old.gameObject);
     }
 
     // --- Font Sistemi ---
@@ -1376,11 +1542,13 @@ public class GameManager : MonoBehaviour
         TMP_FontAsset targetFont = gameFonts[currentFontIndex];
         if (targetFont == null) return;
 
-        // Sahnedeki tüm TextMeshProUGUI bileşenlerini bul
-        TextMeshProUGUI[] allTexts = FindObjectsByType<TextMeshProUGUI>(FindObjectsSortMode.None);
+        // Sahnedeki tüm TMP_Text bileşenlerini bul (TextMeshProUGUI + TextMeshPro)
+        TMP_Text[] allTexts = FindObjectsByType<TMP_Text>(FindObjectsSortMode.None);
         foreach (var txt in allTexts)
         {
             txt.font = targetFont;
+            // Olası material override'larını da temizle (bazı objeler font değiştirse bile eski materyalle kalabiliyor)
+            txt.fontSharedMaterial = targetFont.material;
             txt.SetAllDirty(); // Mesh'i yenilemeye zorla
         }
     }
@@ -1393,10 +1561,11 @@ public class GameManager : MonoBehaviour
         TMP_FontAsset targetFont = gameFonts[currentFontIndex];
         if (targetFont == null) return;
 
-        TextMeshProUGUI[] texts = root.GetComponentsInChildren<TextMeshProUGUI>(true);
+        TMP_Text[] texts = root.GetComponentsInChildren<TMP_Text>(true);
         foreach (var txt in texts)
         {
             txt.font = targetFont;
+            txt.fontSharedMaterial = targetFont.material;
             txt.SetAllDirty(); // Mesh'i yenilemeye zorla
         }
     }
@@ -1409,7 +1578,7 @@ public class GameManager : MonoBehaviour
         if (currentFontIndex >= gameFonts.Count) currentFontIndex = 0;
         if (currentFontIndex < 0) currentFontIndex = gameFonts.Count - 1;
 
-        PlayerPrefs.SetInt("SelectedFont", currentFontIndex);
+        PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
         PlayerPrefs.Save();
 
         ApplyFontToAll();
@@ -1425,11 +1594,11 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        GameObject canvasObj = GameObject.Find("Canvas");
-        if (canvasObj == null) return;
+        Transform canvasTr = GetCanvasTransform();
+        if (canvasTr == null) return;
 
         settingsPanel = new GameObject("SettingsPanel");
-        settingsPanel.transform.SetParent(canvasObj.transform, false);
+        settingsPanel.transform.SetParent(canvasTr, false);
 
         // Arkaplan
         Image bg = settingsPanel.AddComponent<Image>();

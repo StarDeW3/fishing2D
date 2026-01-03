@@ -1,5 +1,6 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Camera))]
 public class CameraFollow : MonoBehaviour
 {
     [Header("Takip Ayarları")]
@@ -35,24 +36,40 @@ public class CameraFollow : MonoBehaviour
     
     private Camera cam;
 
-    void Start()
+    private float nextTargetSearchTime = 0f;
+    private const float TARGET_SEARCH_INTERVAL = 0.5f;
+
+    void Awake()
     {
         cam = GetComponent<Camera>();
+    }
 
+    void Start()
+    {
         // Eğer hedef atanmamışsa otomatik bul
         if (target == null)
-        {
-            BoatController boat = FindFirstObjectByType<BoatController>();
-            if (boat != null) target = boat.transform;
-        }
+            TryAcquireTarget();
     }
 
     void LateUpdate()
     {
         if (target == null)
-            return;
+        {
+            TryAcquireTarget();
+            if (target == null) return;
+        }
 
         MoveAndZoomCamera();
+    }
+
+    private void TryAcquireTarget()
+    {
+        if (Time.unscaledTime < nextTargetSearchTime) return;
+        nextTargetSearchTime = Time.unscaledTime + TARGET_SEARCH_INTERVAL;
+
+        BoatController boat = BoatController.instance;
+        if (boat == null) boat = FindFirstObjectByType<BoatController>();
+        if (boat != null) target = boat.transform;
     }
 
     void MoveAndZoomCamera()
@@ -85,7 +102,15 @@ public class CameraFollow : MonoBehaviour
         // Zoom işlemini uygula (SmoothDamp ile daha pürüzsüz)
         if (cam != null)
         {
-            cam.orthographicSize = Mathf.SmoothDamp(cam.orthographicSize, targetZoom, ref zoomVelocity, zoomSmoothTime);
+            if (zoomSmoothTime <= 0f)
+            {
+                cam.orthographicSize = targetZoom;
+                zoomVelocity = 0f;
+            }
+            else
+            {
+                cam.orthographicSize = Mathf.SmoothDamp(cam.orthographicSize, targetZoom, ref zoomVelocity, zoomSmoothTime);
+            }
         }
 
         Vector3 desiredPosition = targetPos + offset;
@@ -107,7 +132,16 @@ public class CameraFollow : MonoBehaviour
         desiredPosition.z = offset.z;
 
         // Yumuşak geçiş (SmoothDamp)
-        Vector3 smoothedPosition = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, smoothSpeed);
+        Vector3 smoothedPosition;
+        if (smoothSpeed <= 0f)
+        {
+            smoothedPosition = desiredPosition;
+            currentVelocity = Vector3.zero;
+        }
+        else
+        {
+            smoothedPosition = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, smoothSpeed);
+        }
         
         // Shake Efekti
         if (shakeDuration > 0)

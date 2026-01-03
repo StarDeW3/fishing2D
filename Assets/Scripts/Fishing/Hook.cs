@@ -23,6 +23,9 @@ public class Hook : MonoBehaviour
 
     // Cache
     private WaveManager waveManager;
+    private bool lastWasUnderwater = false;
+    private static FishingRod cachedRod;
+    private float nextWaveManagerSearchTime = 0f;
 
     void Awake()
     {
@@ -54,7 +57,21 @@ public class Hook : MonoBehaviour
             if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed) moveY = 1f;
             if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed) moveY = -1f;
         }
-        inputDir = new Vector2(moveX, moveY).normalized;
+
+        // Keyboard input is digital (0/±1). Avoid sqrt in Vector2.normalized.
+        if (moveX == 0f && moveY == 0f)
+        {
+            inputDir = Vector2.zero;
+        }
+        else if (moveX != 0f && moveY != 0f)
+        {
+            const float invSqrt2 = 0.70710678f;
+            inputDir = new Vector2(moveX * invSqrt2, moveY * invSqrt2);
+        }
+        else
+        {
+            inputDir = new Vector2(moveX, moveY);
+        }
 
         // 2. Z pozisyonunu sabitleme
         if (Mathf.Abs(transform.position.z) > 0.01f)
@@ -80,17 +97,25 @@ public class Hook : MonoBehaviour
         if (isBusy) return; // Meşgulse fizik uygulama
 
         // WaveManager kontrolü (Cache veya Instance)
-        if (waveManager == null) waveManager = WaveManager.instance;
+        if (waveManager == null && Time.time >= nextWaveManagerSearchTime)
+        {
+            waveManager = WaveManager.instance;
+            nextWaveManagerSearchTime = Time.time + 0.5f;
+        }
 
         if (waveManager != null)
         {
             float waveHeight = waveManager.GetWaveHeight(transform.position.x);
+            bool isUnderwater = transform.position.y < waveHeight;
             
             // Su altındaysa
-            if (transform.position.y < waveHeight)
+            if (isUnderwater)
             {
-                rb.linearDamping = 2f; // Su direnci
-                rb.gravityScale = 0.1f; // Yavaş batma (Kontrolü kolaylaştırmak için düşürdüm)
+                if (!lastWasUnderwater)
+                {
+                    rb.linearDamping = 2f; // Su direnci
+                    rb.gravityScale = 0.1f; // Yavaş batma (Kontrolü kolaylaştırmak için düşürdüm)
+                }
                 
                 // Su altı hareketi
                 if (inputDir != Vector2.zero)
@@ -101,8 +126,11 @@ public class Hook : MonoBehaviour
             else
             {
                 // Havadaysa
-                rb.linearDamping = 0f;
-                rb.gravityScale = 1f;
+                if (lastWasUnderwater)
+                {
+                    rb.linearDamping = 0f;
+                    rb.gravityScale = 1f;
+                }
 
                 // Havada kontrol (daha az)
                 if (inputDir != Vector2.zero)
@@ -110,6 +138,8 @@ public class Hook : MonoBehaviour
                     rb.AddForce(inputDir * airMoveSpeed);
                 }
             }
+
+            lastWasUnderwater = isUnderwater;
         }
     }
 
@@ -139,7 +169,9 @@ public class Hook : MonoBehaviour
         // FishingRod referansını kontrol et
         if (fishingRod == null) 
         {
-            fishingRod = FindFirstObjectByType<FishingRod>();
+            if (cachedRod == null)
+                cachedRod = FindFirstObjectByType<FishingRod>();
+            fishingRod = cachedRod;
         }
         
         if (fishingRod == null)

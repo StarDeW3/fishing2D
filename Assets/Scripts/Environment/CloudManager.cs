@@ -15,6 +15,8 @@ public class CloudManager : MonoBehaviour
 
     private float timer;
     private Camera cam;
+    private const int MAX_SPAWNS_PER_FRAME = 3;
+    private float camCheckTimer = 0f;
     
     // Object Pooling için liste
     private List<CloudMover> cloudPool = new List<CloudMover>();
@@ -26,17 +28,38 @@ public class CloudManager : MonoBehaviour
 
     void Update()
     {
+        if (spawnInterval <= 0f) return;
+
+        if (cam == null)
+        {
+            camCheckTimer -= Time.deltaTime;
+            if (camCheckTimer <= 0f)
+            {
+                cam = Camera.main;
+                camCheckTimer = 1f;
+            }
+        }
+
         timer += Time.deltaTime;
-        if (timer >= spawnInterval)
+
+        int spawned = 0;
+        while (timer >= spawnInterval && spawned < MAX_SPAWNS_PER_FRAME)
         {
             SpawnCloud();
             timer -= spawnInterval;
+            spawned++;
         }
+
+        // If we hit the cap, drop backlog to avoid burst spawning after long stalls.
+        if (spawned >= MAX_SPAWNS_PER_FRAME)
+            timer = 0f;
     }
 
     void SpawnCloud()
     {
-        if (cloudPrefabs.Length == 0 || cam == null) return;
+        if (cloudPrefabs.Length == 0) return;
+        if (cam == null) cam = Camera.main;
+        if (cam == null) return;
 
         // Kamera boyutlarına göre X pozisyonlarını hesapla
         float halfHeight = cam.orthographicSize;
@@ -129,25 +152,49 @@ public class CloudMover : MonoBehaviour
 {
     public float speed;
     private Camera cam;
+    private Transform camTransform;
+    private Transform selfTransform;
+    private float cachedOrthoSize;
+    private float cachedAspect;
+    private float cachedHalfWidth;
+
+    void Awake()
+    {
+        selfTransform = transform;
+    }
 
     // Initialize metodu ile dışarıdan değerleri alıyoruz
     public void Initialize(float moveSpeed, Camera camera)
     {
         speed = moveSpeed;
         cam = camera;
+        camTransform = camera != null ? camera.transform : null;
+
+        if (cam != null)
+        {
+            cachedOrthoSize = cam.orthographicSize;
+            cachedAspect = cam.aspect;
+            cachedHalfWidth = cachedOrthoSize * cachedAspect;
+        }
     }
 
     void Update()
     {
-        transform.Translate(Vector3.right * speed * Time.deltaTime);
+        if (selfTransform == null) selfTransform = transform;
+        selfTransform.Translate(Vector3.right * speed * Time.deltaTime);
         
-        if (cam != null)
+        if (cam != null && camTransform != null)
         {
-            float halfHeight = cam.orthographicSize;
-            float halfWidth = halfHeight * cam.aspect;
+            // Camera size/aspect can change (resolution/orientation); update cache only when needed
+            if (!Mathf.Approximately(cam.orthographicSize, cachedOrthoSize) || !Mathf.Approximately(cam.aspect, cachedAspect))
+            {
+                cachedOrthoSize = cam.orthographicSize;
+                cachedAspect = cam.aspect;
+                cachedHalfWidth = cachedOrthoSize * cachedAspect;
+            }
             
             // Ekranın sağından biraz dışarı çıkınca pasif yap (Destroy yerine)
-            if (transform.position.x > cam.transform.position.x + halfWidth + 2f)
+            if (selfTransform.position.x > camTransform.position.x + cachedHalfWidth + 2f)
             {
                 gameObject.SetActive(false);
             }

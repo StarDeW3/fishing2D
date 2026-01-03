@@ -4,6 +4,12 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(LineRenderer))]
 public class FishingRod : MonoBehaviour
 {
+    private static Material sharedLineMaterial;
+
+    private const int LINE_POINT_COUNT = 20;
+    private bool lastHadHook = false;
+    private bool lastCanMove = true;
+    private Vector3[] linePoints;
     [Header("Ayarlar")]
     public Transform rodTip; // Oltanın ucu
     public GameObject hookPrefab; // Kanca prefabı
@@ -17,6 +23,7 @@ public class FishingRod : MonoBehaviour
     public bool isMiniGameActive = false; // Dışarıdan erişim için
     private CameraFollow cameraFollow;
     private WaveManager waveManager; // Cache
+    private float nextCameraFollowLookupTime = 0f;
 
     void Start()
     {
@@ -27,7 +34,9 @@ public class FishingRod : MonoBehaviour
         // Line Renderer ayarları (ince bir ip gibi görünmesi için)
         lineRenderer.startWidth = 0.05f;
         lineRenderer.endWidth = 0.05f;
-        lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        if (sharedLineMaterial == null)
+            sharedLineMaterial = new Material(Shader.Find("Sprites/Default"));
+        lineRenderer.sharedMaterial = sharedLineMaterial;
         lineRenderer.startColor = Color.white;
         lineRenderer.endColor = Color.white;
 
@@ -61,31 +70,50 @@ public class FishingRod : MonoBehaviour
             }
         }
 
+        bool hasHook = currentHook != null;
+
         // Misina çizimi
-        if (currentHook != null)
+        if (hasHook)
         {
+            if (!lastHadHook)
+            {
+                lineRenderer.enabled = true;
+                lineRenderer.positionCount = LINE_POINT_COUNT;
+            }
+
             UpdateFishingLine();
-            
+
             // Tekne hareketini durdur
-            if (BoatController.instance != null)
-                BoatController.instance.canMove = false;
+            BoatController boat = BoatController.instance;
+            if (boat != null && lastCanMove)
+            {
+                boat.canMove = false;
+                lastCanMove = false;
+            }
         }
         else
         {
-            lineRenderer.enabled = false;
+            if (lastHadHook)
+                lineRenderer.enabled = false;
+
             // Tekne hareketini serbest bırak (Mini oyun yoksa)
-            if (BoatController.instance != null && !isMiniGameActive)
-                BoatController.instance.canMove = true;
+            BoatController boat = BoatController.instance;
+            bool desiredCanMove = !isMiniGameActive;
+            if (boat != null && lastCanMove != desiredCanMove)
+            {
+                boat.canMove = desiredCanMove;
+                lastCanMove = desiredCanMove;
+            }
         }
+
+        lastHadHook = hasHook;
     }
 
     void UpdateFishingLine()
     {
-        lineRenderer.enabled = true;
-        
         // Bezier Eğrisi ile ipin sarkmasını simüle et
-        int pointCount = 20;
-        lineRenderer.positionCount = pointCount;
+        if (linePoints == null || linePoints.Length != LINE_POINT_COUNT)
+            linePoints = new Vector3[LINE_POINT_COUNT];
         
         Vector3 p0 = rodTip.position;
         Vector3 p2 = currentHook.transform.position;
@@ -111,18 +139,20 @@ public class FishingRod : MonoBehaviour
         Vector3 midPoint = (p0 + p2) / 2f;
         Vector3 p1 = midPoint + Vector3.down * sagAmount;
 
-        for (int i = 0; i < pointCount; i++)
+        for (int i = 0; i < LINE_POINT_COUNT; i++)
         {
-            float t = i / (float)(pointCount - 1);
+            float t = i / (float)(LINE_POINT_COUNT - 1);
             // Optimize: Bezier calculation
             float u = 1 - t;
             float tt = t * t;
             float uu = u * u;
             
             Vector3 pos = uu * p0 + 2 * u * t * p1 + tt * p2;
-            
-            lineRenderer.SetPosition(i, pos);
+
+            linePoints[i] = pos;
         }
+
+        lineRenderer.SetPositions(linePoints);
     }
 
     void CastLine()
@@ -159,11 +189,31 @@ public class FishingRod : MonoBehaviour
         hookRb.AddForce(dir * finalForce, ForceMode2D.Impulse);
 
         // Kameraya kancayı bildir
+        if (cameraFollow == null && Time.unscaledTime >= nextCameraFollowLookupTime)
+        {
+            nextCameraFollowLookupTime = Time.unscaledTime + 1f;
+            Camera cam = Camera.main;
+            if (cam != null)
+                cameraFollow = cam.GetComponent<CameraFollow>();
+        }
+
         if (cameraFollow != null) cameraFollow.secondaryTarget = currentHook.transform;
     }
 
     public void ReelInSuccess(Fish fish)
     {
+        if (fish == null)
+        {
+            ResetFishingState();
+            return;
+        }
+
+        // Lifetime istatistiklerini güncelle (yakalanan balık sayısı ve toplam kazanç)
+        if (UIManager.instance != null)
+        {
+            UIManager.instance.OnFishCaught(fish.scoreValue);
+        }
+
         if (SoundManager.instance != null)
             SoundManager.instance.PlaySFX(SoundManager.instance.catchSound, 1f, 0.2f);
 
@@ -171,8 +221,8 @@ public class FishingRod : MonoBehaviour
         {
             GameManager.instance.AddMoney(fish.scoreValue); // Score -> Money
             
-            string fishName = !string.IsNullOrEmpty(fish.fishName) ? fish.fishName : "Fish";
-            GameManager.instance.ShowFeedback(fishName + " CAUGHT!\n+$" + fish.scoreValue);
+            string fishName = !string.IsNullOrEmpty(fish.fishName) ? fish.fishName : "Balık";
+            GameManager.instance.ShowFeedback($"{fishName} yakaladın!\n+${fish.scoreValue}");
         }
 
         if (fish != null) fish.Despawn();

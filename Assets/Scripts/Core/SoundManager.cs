@@ -24,9 +24,14 @@ public class SoundManager : MonoBehaviour
     public bool isMuted = false;
 
     // SFX Havuzu (Aynı anda birden fazla ses ve farklı pitch değerleri için)
-    private List<AudioSource> sfxPool = new List<AudioSource>();
+    private readonly List<AudioSource> sfxPool = new List<AudioSource>();
     private GameObject sfxPoolParent;
     private const int INITIAL_POOL_SIZE = 5;
+
+    // Spike anlarında havuz büyüyebilir; uzun vadede sahneyi şişirmemek için idle kaynakları trim et.
+    private const int MAX_POOL_SIZE = 32;
+    private const float POOL_TRIM_INTERVAL = 10f;
+    private Coroutine poolTrimRoutine;
 
     void Awake()
     {
@@ -72,6 +77,14 @@ public class SoundManager : MonoBehaviour
         }
 
         UpdateVolumes();
+
+        if (poolTrimRoutine != null)
+        {
+            StopCoroutine(poolTrimRoutine);
+            poolTrimRoutine = null;
+        }
+
+        poolTrimRoutine = StartCoroutine(TrimPoolRoutine());
     }
 
     AudioSource CreateNewSFXSource()
@@ -84,6 +97,7 @@ public class SoundManager : MonoBehaviour
         newSource.outputAudioMixerGroup = sfxSource.outputAudioMixerGroup;
         newSource.spatialBlend = sfxSource.spatialBlend;
         newSource.playOnAwake = false;
+        newSource.mute = isMuted;
 
         sfxPool.Add(newSource);
         return newSource;
@@ -98,7 +112,11 @@ public class SoundManager : MonoBehaviour
                 return source;
             }
         }
-        return CreateNewSFXSource();
+        if (sfxPool.Count < MAX_POOL_SIZE)
+            return CreateNewSFXSource();
+
+        // Havuz sınırına geldiysek sesi düşürmek yerine sessizce vazgeç.
+        return null;
     }
 
     void Start()
@@ -128,7 +146,10 @@ public class SoundManager : MonoBehaviour
     {
         if (clip == null || isMuted) return;
 
+        pitchVariance = Mathf.Abs(pitchVariance);
+
         AudioSource source = GetAvailableSFXSource();
+        if (source == null) return;
         
         // Pitch ve Volume ayarla
         source.pitch = 1f + Random.Range(-pitchVariance, pitchVariance);
@@ -136,6 +157,41 @@ public class SoundManager : MonoBehaviour
         
         source.clip = clip;
         source.Play();
+    }
+
+    private System.Collections.IEnumerator TrimPoolRoutine()
+    {
+        var wait = new WaitForSeconds(POOL_TRIM_INTERVAL);
+        while (true)
+        {
+            yield return wait;
+
+            // Initial size'ın altına inmeyelim; sadece boşta olan ekstra kaynakları temizleyelim.
+            for (int i = sfxPool.Count - 1; i >= INITIAL_POOL_SIZE; i--)
+            {
+                var source = sfxPool[i];
+                if (source == null)
+                {
+                    sfxPool.RemoveAt(i);
+                    continue;
+                }
+
+                if (!source.isPlaying)
+                {
+                    sfxPool.RemoveAt(i);
+                    Destroy(source.gameObject);
+                }
+            }
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (poolTrimRoutine != null)
+        {
+            StopCoroutine(poolTrimRoutine);
+            poolTrimRoutine = null;
+        }
     }
 
     public void PlayRandomSFX(AudioClip[] clips, float volumeScale = 1f, float pitchVariance = 0.1f)
