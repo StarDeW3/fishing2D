@@ -33,6 +33,8 @@ public class SoundManager : MonoBehaviour
     private const float POOL_TRIM_INTERVAL = 10f;
     private Coroutine poolTrimRoutine;
 
+    private bool isSubscribedToSettings = false;
+
     void Awake()
     {
         if (instance == null)
@@ -40,11 +42,27 @@ public class SoundManager : MonoBehaviour
             instance = this;
             DontDestroyOnLoad(gameObject);
             InitializeAudioSources();
+
+            // Eğer SettingsManager halihazırda varsa ilk değerleri uygula.
+            if (SettingsManager.instance != null)
+            {
+                ApplyFromSettings(SettingsManager.instance);
+            }
         }
         else
         {
             Destroy(gameObject);
         }
+    }
+
+    private void OnEnable()
+    {
+        TrySubscribeToSettings();
+    }
+
+    private void OnDisable()
+    {
+        TryUnsubscribeFromSettings();
     }
 
     void InitializeAudioSources()
@@ -121,8 +139,47 @@ public class SoundManager : MonoBehaviour
 
     void Start()
     {
+        // GameManager SettingsManager'ı sonra oluşturabilir; Start'ta bir daha dene.
+        TrySubscribeToSettings();
+        if (SettingsManager.instance != null)
+            ApplyFromSettings(SettingsManager.instance);
+
         if (backgroundMusic != null)
             PlayMusic(backgroundMusic);
+    }
+
+    private void TrySubscribeToSettings()
+    {
+        if (isSubscribedToSettings) return;
+        if (SettingsManager.instance == null) return;
+
+        SettingsManager.instance.SettingsChanged -= OnSettingsChanged;
+        SettingsManager.instance.SettingsChanged += OnSettingsChanged;
+        isSubscribedToSettings = true;
+    }
+
+    private void TryUnsubscribeFromSettings()
+    {
+        if (!isSubscribedToSettings) return;
+        if (SettingsManager.instance != null)
+            SettingsManager.instance.SettingsChanged -= OnSettingsChanged;
+        isSubscribedToSettings = false;
+    }
+
+    private void OnSettingsChanged()
+    {
+        if (SettingsManager.instance == null) return;
+        ApplyFromSettings(SettingsManager.instance);
+    }
+
+    private void ApplyFromSettings(SettingsManager settings)
+    {
+        if (settings == null) return;
+
+        musicVolume = settings.MusicVolume;
+        sfxVolume = settings.SfxVolume;
+        isMuted = settings.Muted;
+        UpdateVolumes();
     }
 
     public void PlayMusic(AudioClip clip)
@@ -224,6 +281,12 @@ public class SoundManager : MonoBehaviour
     public void ToggleMute()
     {
         isMuted = !isMuted;
+        UpdateVolumes();
+    }
+
+    public void SetMuted(bool muted)
+    {
+        isMuted = muted;
         UpdateVolumes();
     }
 

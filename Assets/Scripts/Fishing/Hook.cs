@@ -23,6 +23,8 @@ public class Hook : MonoBehaviour
 
     // Cache
     private WaveManager waveManager;
+    private CircleCollider2D triggerCollider;
+    private float baseTriggerRadius = 0.5f;
     private bool lastWasUnderwater = false;
     private static FishingRod cachedRod;
     private float nextWaveManagerSearchTime = 0f;
@@ -30,6 +32,10 @@ public class Hook : MonoBehaviour
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+
+        triggerCollider = GetComponent<CircleCollider2D>();
+        if (triggerCollider != null)
+            baseTriggerRadius = triggerCollider.radius;
         
         // Çarpışma algılama modunu iyileştir (Hızlı hareketlerde içinden geçmeyi önler)
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
@@ -43,6 +49,13 @@ public class Hook : MonoBehaviour
     {
         // WaveManager'ı cache'le (Eğer sahnede varsa)
         waveManager = WaveManager.instance;
+
+        // Fish Radar upgrade: make it easier to detect/hook fish.
+        if (triggerCollider != null && UpgradeManager.instance != null)
+        {
+            float radiusBonus = Mathf.Max(0f, UpgradeManager.instance.GetValue(UpgradeType.FishRadar));
+            triggerCollider.radius = baseTriggerRadius + radiusBonus;
+        }
     }
 
     void Update()

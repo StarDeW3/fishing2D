@@ -6,7 +6,8 @@ using System.Collections;
 public class Fish : MonoBehaviour
 {
     [Header("Balık Özellikleri")]
-    public string fishName = "Small Fish"; // Balık ismi
+    public string fishName = ""; // Balık ismi
+    public string rarityLabel = "";
     public float speed = 2f;
     public float turnDelay = 5f; // Yön değiştirme süresi
     public int scoreValue = 10;
@@ -19,6 +20,7 @@ public class Fish : MonoBehaviour
     private Transform t; // Optimization: Cache transform
     private float direction = 1f;
     private bool isCaught = false;
+    private float baseScale = 1f;
     private WaitForSeconds turnWait; // Optimization: Cache wait object
     private Coroutine swimRoutine;
     private System.Action<Fish> returnToPoolAction;
@@ -44,6 +46,7 @@ public class Fish : MonoBehaviour
     public void ResetState()
     {
         isCaught = false;
+        rarityLabel = "";
         if (rb != null)
         {
             rb.gravityScale = 0f;
@@ -55,6 +58,7 @@ public class Fish : MonoBehaviour
         if (t != null)
         {
             t.SetParent(null);
+            baseScale = 1f;
             t.localScale = Vector3.one; // Reset scale
         }
 
@@ -110,9 +114,8 @@ public class Fish : MonoBehaviour
     void UpdateFacing()
     {
         // Balığın yönünü çevir
-        Vector3 scale = t.localScale;
-        scale.x = Mathf.Abs(scale.x) * (direction > 0 ? 1 : -1);
-        t.localScale = scale;
+        float s = Mathf.Max(0.1f, baseScale);
+        t.localScale = new Vector3(s * (direction > 0 ? 1 : -1), s, 1f);
     }
 
     public void Catch(Transform hookTransform)
@@ -183,12 +186,21 @@ public class Fish : MonoBehaviour
         }
     }
 
-    public void Setup(string name, float newSpeed, float newDifficulty, int newScore, Sprite newSprite, float newTurnDelay = -1f)
+    public void Setup(string name, float newSpeed, float newDifficulty, int newScore, Sprite newSprite, float newTurnDelay = -1f, float newScale = -1f, string newRarityLabel = null)
     {
         fishName = name;
         speed = newSpeed;
         difficulty = newDifficulty;
         scoreValue = newScore;
+
+        if (newRarityLabel != null)
+            rarityLabel = newRarityLabel;
+
+        if (newScale >= 0f)
+        {
+            baseScale = newScale;
+            UpdateFacing();
+        }
 
         if (newTurnDelay >= 0f)
         {

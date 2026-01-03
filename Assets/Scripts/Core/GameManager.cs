@@ -61,6 +61,34 @@ public class GameManager : MonoBehaviour
 
     private Transform cachedCanvasTransform;
 
+    private SettingsManager Settings => SettingsManager.instance;
+    private LocalizationManager Loc => LocalizationManager.instance;
+    private static T FindOrCreateManager<T>(string name) where T : MonoBehaviour
+    {
+        // Important: Don't rely on T.instance inside another Awake(),
+        // because script execution order can make it null even when the component exists.
+        T existing = FindFirstObjectByType<T>();
+        if (existing != null) return existing;
+
+        GameObject go = new GameObject(name);
+        return go.AddComponent<T>();
+    }
+
+    private void SubscribeToManagerEvents()
+    {
+        if (Settings != null)
+        {
+            Settings.SettingsChanged -= HandleSettingsChanged;
+            Settings.SettingsChanged += HandleSettingsChanged;
+        }
+
+        if (Loc != null)
+        {
+            Loc.LanguageChanged -= HandleLanguageChanged;
+            Loc.LanguageChanged += HandleLanguageChanged;
+        }
+    }
+
     private static void StretchToFill(RectTransform rectTransform)
     {
         rectTransform.anchorMin = Vector2.zero;
@@ -157,6 +185,12 @@ public class GameManager : MonoBehaviour
 
         EnsureUIFontSetup();
 
+        // Settings/Localization managers must NOT be added to the GameManager GameObject,
+        // because they call DontDestroyOnLoad(gameObject) which would also persist GameManager.
+        // That breaks New Game / scene reload (UI references get destroyed but GameManager doesn't re-Start).
+        FindOrCreateManager<SettingsManager>("SettingsManager");
+        FindOrCreateManager<LocalizationManager>("LocalizationManager");
+
         CreateUI();
         CreateMainMenu();
         
@@ -188,6 +222,217 @@ public class GameManager : MonoBehaviour
             isGameActive = false;
             SetPause(PauseSource.MainMenu, true);
         }
+
+        if (Settings != null)
+        {
+            Settings.SettingsChanged -= HandleSettingsChanged;
+            Settings.SettingsChanged += HandleSettingsChanged;
+        }
+
+        if (Loc != null)
+        {
+            Loc.LanguageChanged -= HandleLanguageChanged;
+            Loc.LanguageChanged += HandleLanguageChanged;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (Settings != null)
+            Settings.SettingsChanged -= HandleSettingsChanged;
+
+        if (Loc != null)
+            Loc.LanguageChanged -= HandleLanguageChanged;
+    }
+
+    private void HandleSettingsChanged()
+    {
+        if (settingsPanel != null && settingsPanel.activeSelf)
+            UpdateSettingsUI();
+    }
+
+    private void HandleLanguageChanged()
+    {
+        UpdateSettingsUI();
+        UpdateMainMenuLocalizedText();
+        UpdatePauseLocalizedText();
+        UpdateGameOverLocalizedText();
+        UpdateShopLocalizedText();
+    }
+
+    private static string T(string key, string fallback = null)
+    {
+        return LocalizationManager.T(key, fallback);
+    }
+
+    private void ChangeLanguage(int direction)
+    {
+        if (Settings == null) return;
+        int value = (int)Settings.Language + direction;
+        if (value < 0) value = 1;
+        if (value > 1) value = 0;
+        Settings.SetLanguage((GameLanguage)value);
+        UpdateSettingsUI();
+    }
+
+    private Slider CreateLabeledSliderRow(Transform parent, string rowName, Vector2 anchoredPos)
+    {
+        GameObject row = new GameObject(rowName);
+        row.transform.SetParent(parent, false);
+        RectTransform rowRect = row.AddComponent<RectTransform>();
+        rowRect.anchorMin = new Vector2(0.5f, 1f);
+        rowRect.anchorMax = new Vector2(0.5f, 1f);
+        rowRect.pivot = new Vector2(0.5f, 1f);
+        rowRect.anchoredPosition = anchoredPos;
+        rowRect.sizeDelta = new Vector2(360, 34);
+
+        GameObject labelObj = new GameObject("Label");
+        labelObj.transform.SetParent(row.transform, false);
+        TextMeshProUGUI label = labelObj.AddComponent<TextMeshProUGUI>();
+        label.text = "";
+        label.fontSize = 16;
+        label.color = new Color(0.85f, 0.9f, 0.95f);
+        label.alignment = TextAlignmentOptions.Left;
+        RectTransform labelRect = label.rectTransform;
+        labelRect.anchorMin = new Vector2(0, 0);
+        labelRect.anchorMax = new Vector2(0, 1);
+        labelRect.pivot = new Vector2(0, 0.5f);
+        labelRect.anchoredPosition = new Vector2(10, 0);
+        labelRect.sizeDelta = new Vector2(150, 0);
+
+        GameObject valueObj = new GameObject("Value");
+        valueObj.transform.SetParent(row.transform, false);
+        TextMeshProUGUI value = valueObj.AddComponent<TextMeshProUGUI>();
+        value.text = "";
+        value.fontSize = 14;
+        value.color = new Color(1f, 1f, 0.7f);
+        value.alignment = TextAlignmentOptions.Right;
+        RectTransform valueRect = value.rectTransform;
+        valueRect.anchorMin = new Vector2(1, 0);
+        valueRect.anchorMax = new Vector2(1, 1);
+        valueRect.pivot = new Vector2(1, 0.5f);
+        valueRect.anchoredPosition = new Vector2(-10, 0);
+        valueRect.sizeDelta = new Vector2(60, 0);
+
+        GameObject sliderObj = new GameObject("Slider");
+        sliderObj.transform.SetParent(row.transform, false);
+        RectTransform sliderRect = sliderObj.AddComponent<RectTransform>();
+        sliderRect.anchorMin = new Vector2(0, 0);
+        sliderRect.anchorMax = new Vector2(1, 1);
+        sliderRect.offsetMin = new Vector2(165, 8);
+        sliderRect.offsetMax = new Vector2(-80, -8);
+
+        Slider slider = sliderObj.AddComponent<Slider>();
+        slider.transition = Selectable.Transition.ColorTint;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.wholeNumbers = false;
+
+        // Background
+        GameObject bgObj = new GameObject("Background");
+        bgObj.transform.SetParent(sliderObj.transform, false);
+        Image bg = bgObj.AddComponent<Image>();
+        bg.color = new Color(0.15f, 0.2f, 0.25f, 1f);
+        RectTransform bgRect = bg.rectTransform;
+        StretchToFill(bgRect);
+
+        // Fill Area
+        GameObject fillAreaObj = new GameObject("Fill Area");
+        fillAreaObj.transform.SetParent(sliderObj.transform, false);
+        RectTransform fillAreaRect = fillAreaObj.AddComponent<RectTransform>();
+        StretchToFill(fillAreaRect);
+        fillAreaRect.offsetMin = new Vector2(5, 0);
+        fillAreaRect.offsetMax = new Vector2(-5, 0);
+
+        GameObject fillObj = new GameObject("Fill");
+        fillObj.transform.SetParent(fillAreaObj.transform, false);
+        Image fill = fillObj.AddComponent<Image>();
+        fill.color = new Color(0.3f, 0.8f, 1f, 0.9f);
+        RectTransform fillRect = fill.rectTransform;
+        StretchToFill(fillRect);
+
+        // Handle Slide Area
+        GameObject handleAreaObj = new GameObject("Handle Slide Area");
+        handleAreaObj.transform.SetParent(sliderObj.transform, false);
+        RectTransform handleAreaRect = handleAreaObj.AddComponent<RectTransform>();
+        StretchToFill(handleAreaRect);
+
+        GameObject handleObj = new GameObject("Handle");
+        handleObj.transform.SetParent(handleAreaObj.transform, false);
+        Image handle = handleObj.AddComponent<Image>();
+        handle.color = new Color(1f, 1f, 1f, 0.9f);
+        RectTransform handleRect = handle.rectTransform;
+        handleRect.anchorMin = new Vector2(0, 0.5f);
+        handleRect.anchorMax = new Vector2(0, 0.5f);
+        handleRect.pivot = new Vector2(0.5f, 0.5f);
+        handleRect.sizeDelta = new Vector2(18, 18);
+
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.targetGraphic = handle;
+
+        // Nice defaults
+        var colors = slider.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1f, 1f, 1f, 0.95f);
+        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
+        colors.disabledColor = new Color(1f, 1f, 1f, 0.4f);
+        slider.colors = colors;
+
+        return slider;
+    }
+
+    private Toggle CreateLabeledToggleRow(Transform parent, string rowName, Vector2 anchoredPos)
+    {
+        GameObject row = new GameObject(rowName);
+        row.transform.SetParent(parent, false);
+        RectTransform rowRect = row.AddComponent<RectTransform>();
+        rowRect.anchorMin = new Vector2(0.5f, 1f);
+        rowRect.anchorMax = new Vector2(0.5f, 1f);
+        rowRect.pivot = new Vector2(0.5f, 1f);
+        rowRect.anchoredPosition = anchoredPos;
+        rowRect.sizeDelta = new Vector2(360, 34);
+
+        GameObject labelObj = new GameObject("Label");
+        labelObj.transform.SetParent(row.transform, false);
+        TextMeshProUGUI label = labelObj.AddComponent<TextMeshProUGUI>();
+        label.text = "";
+        label.fontSize = 16;
+        label.color = new Color(0.85f, 0.9f, 0.95f);
+        label.alignment = TextAlignmentOptions.Left;
+        RectTransform labelRect = label.rectTransform;
+        labelRect.anchorMin = new Vector2(0, 0);
+        labelRect.anchorMax = new Vector2(1, 1);
+        labelRect.offsetMin = new Vector2(10, 0);
+        labelRect.offsetMax = new Vector2(-70, 0);
+
+        GameObject toggleObj = new GameObject("Toggle");
+        toggleObj.transform.SetParent(row.transform, false);
+        RectTransform toggleRect = toggleObj.AddComponent<RectTransform>();
+        toggleRect.anchorMin = new Vector2(1, 0.5f);
+        toggleRect.anchorMax = new Vector2(1, 0.5f);
+        toggleRect.pivot = new Vector2(1, 0.5f);
+        toggleRect.anchoredPosition = new Vector2(-10, 0);
+        toggleRect.sizeDelta = new Vector2(26, 26);
+
+        Image bg = toggleObj.AddComponent<Image>();
+        bg.color = new Color(0.15f, 0.2f, 0.25f, 1f);
+
+        Toggle toggle = toggleObj.AddComponent<Toggle>();
+        toggle.targetGraphic = bg;
+
+        GameObject checkObj = new GameObject("Checkmark");
+        checkObj.transform.SetParent(toggleObj.transform, false);
+        Image check = checkObj.AddComponent<Image>();
+        check.color = new Color(0.3f, 0.8f, 1f, 0.95f);
+        RectTransform checkRect = check.rectTransform;
+        StretchToFill(checkRect);
+        checkRect.offsetMin = new Vector2(4, 4);
+        checkRect.offsetMax = new Vector2(-4, -4);
+
+        toggle.graphic = check;
+
+        return toggle;
     }
 
     private static void ResetProgressPrefs()
@@ -301,14 +546,6 @@ public class GameManager : MonoBehaviour
                 PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
                 PlayerPrefs.Save();
             }
-        }
-
-        // Geçersiz indeksleri düzelt
-        if (currentFontIndex < 0 || currentFontIndex >= gameFonts.Count)
-        {
-            currentFontIndex = 0;
-            PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
-            PlayerPrefs.Save();
         }
     }
 
@@ -467,7 +704,7 @@ public class GameManager : MonoBehaviour
             GameObject textObj = new GameObject("PauseText");
             textObj.transform.SetParent(pausePanel.transform, false);
             TextMeshProUGUI txt = textObj.AddComponent<TextMeshProUGUI>();
-            txt.text = "DURAKLATILDI";
+            txt.text = T("pause.title", "DURAKLATILDI");
             txt.fontSize = 28;
             txt.color = Color.white;
             txt.alignment = TextAlignmentOptions.Center;
@@ -504,7 +741,7 @@ public class GameManager : MonoBehaviour
             GameObject titleObj = new GameObject("TitleText");
             titleObj.transform.SetParent(gameOverPanel.transform, false);
             TextMeshProUGUI title = titleObj.AddComponent<TextMeshProUGUI>();
-            title.text = "OYUN BITTI";
+            title.text = T("gameOver.title", "OYUN BITTI");
             title.fontSize = 42;
             title.color = new Color(1f, 0.3f, 0.3f);
             title.alignment = TextAlignmentOptions.Center;
@@ -587,7 +824,7 @@ public class GameManager : MonoBehaviour
         GameObject titleObj = new GameObject("Title");
         titleObj.transform.SetParent(content.transform, false);
         TextMeshProUGUI title = titleObj.AddComponent<TextMeshProUGUI>();
-        title.text = "BALIKCI";
+        title.text = T("menu.title", "BALIKCI");
         title.fontSize = 72;
         title.color = new Color(0.3f, 0.8f, 1f);
         title.alignment = TextAlignmentOptions.Center;
@@ -605,7 +842,7 @@ public class GameManager : MonoBehaviour
         GameObject subtitleObj = new GameObject("Subtitle");
         subtitleObj.transform.SetParent(content.transform, false);
         TextMeshProUGUI subtitle = subtitleObj.AddComponent<TextMeshProUGUI>();
-        subtitle.text = "2D Balik Tutma Oyunu";
+        subtitle.text = T("menu.subtitle", "2D Fishing Game");
         subtitle.fontSize = 24;
         subtitle.color = new Color(0.6f, 0.7f, 0.8f);
         subtitle.alignment = TextAlignmentOptions.Center;
@@ -620,7 +857,7 @@ public class GameManager : MonoBehaviour
         GameObject moneyInfoObj = new GameObject("MoneyInfo");
         moneyInfoObj.transform.SetParent(content.transform, false);
         TextMeshProUGUI moneyInfo = moneyInfoObj.AddComponent<TextMeshProUGUI>();
-        moneyInfo.SetText("Toplam Para: ${0}", money);
+        moneyInfo.SetText(T("menu.totalMoneyFmt", "Toplam Para: ${0}"), money);
         moneyInfo.fontSize = 22;
         moneyInfo.color = new Color(0.5f, 1f, 0.5f);
         moneyInfo.alignment = TextAlignmentOptions.Center;
@@ -634,55 +871,44 @@ public class GameManager : MonoBehaviour
         // Devam Et Butonu (Eğer kayıt varsa)
         if (!isFirstStart)
         {
-            CreateMenuButton(content.transform, "DEVAM ET", new Vector2(0, -220), new Color(0.15f, 0.4f, 0.2f), () => StartGame(false));
+            // If progress was reset (e.g., after New Game), show START in the same slot.
+            string primaryKey = money == 0 ? "menu.start" : "menu.continue";
+            string primaryFallback = money == 0 ? "START" : "CONTINUE";
+            CreateMenuButton(content.transform, "Continue", T(primaryKey, primaryFallback), new Vector2(0, -220), new Color(0.15f, 0.4f, 0.2f), () => StartGame(false));
         }
         
         // Yeni Oyun Butonu
         float newGameY = isFirstStart ? -220 : -290;
-        CreateMenuButton(content.transform, "YENI OYUN", new Vector2(0, newGameY), new Color(0.2f, 0.35f, 0.5f), () => ShowNewGameConfirm());
+        CreateMenuButton(content.transform, "NewGame", T("menu.newGame", "YENI OYUN"), new Vector2(0, newGameY), new Color(0.2f, 0.35f, 0.5f), () => ShowNewGameConfirm());
         
         // Ayarlar Butonu
         float settingsY = newGameY - 70;
-        CreateMenuButton(content.transform, "AYARLAR", new Vector2(0, settingsY), new Color(0.3f, 0.3f, 0.35f), () => CreateSettingsUI());
-
-        // Kontroller bilgisi
-        GameObject controlsObj = new GameObject("Controls");
-        controlsObj.transform.SetParent(content.transform, false);
-        TextMeshProUGUI controls = controlsObj.AddComponent<TextMeshProUGUI>();
-        controls.text = "<size=14><color=#888>A/D: Hareket | SPACE: Balik Tut | B: Dukkan | ESC: Duraklat</color></size>";
-        controls.fontSize = 14;
-        controls.alignment = TextAlignmentOptions.Center;
-        RectTransform controlsRect = controls.rectTransform;
-        controlsRect.anchorMin = new Vector2(0, 0);
-        controlsRect.anchorMax = new Vector2(1, 0);
-        controlsRect.pivot = new Vector2(0.5f, 0);
-        controlsRect.anchoredPosition = new Vector2(0, 20);
-        controlsRect.sizeDelta = new Vector2(0, 40);
+        CreateMenuButton(content.transform, "Settings", T("menu.settings", "SETTINGS"), new Vector2(0, settingsY), new Color(0.3f, 0.3f, 0.35f), () => CreateSettingsUI());
         
         ApplyFont(mainMenuPanel);
         mainMenuPanel.SetActive(true);
     }
-    
-    void CreateMenuButton(Transform parent, string text, Vector2 position, Color color, UnityEngine.Events.UnityAction action)
+
+    void CreateMenuButton(Transform parent, string id, string text, Vector2 position, Color color, UnityEngine.Events.UnityAction action)
     {
-        GameObject btnObj = new GameObject("Button_" + text);
+        GameObject btnObj = new GameObject("Button_" + id);
         btnObj.transform.SetParent(parent, false);
-        
+
         Image btnImg = btnObj.AddComponent<Image>();
         btnImg.color = color;
-        
+
         Button btn = btnObj.AddComponent<Button>();
-        
+
         // Hover efekti
         ColorBlock colors = btn.colors;
         colors.highlightedColor = new Color(color.r + 0.1f, color.g + 0.1f, color.b + 0.1f);
         colors.pressedColor = new Color(color.r - 0.1f, color.g - 0.1f, color.b - 0.1f);
         btn.colors = colors;
-        
+
         Outline btnOutline = btnObj.AddComponent<Outline>();
         btnOutline.effectColor = new Color(1f, 1f, 1f, 0.2f);
         btnOutline.effectDistance = new Vector2(2, -2);
-        
+
         RectTransform btnRect = btnObj.GetComponent<RectTransform>();
         btnRect.anchorMin = new Vector2(0.5f, 1);
         btnRect.anchorMax = new Vector2(0.5f, 1);
@@ -691,8 +917,14 @@ public class GameManager : MonoBehaviour
         btnRect.sizeDelta = new Vector2(280, 55);
 
         CreateStretchedLabel(btnObj.transform, "Text", text, 24, Color.white);
-        
+
         btn.onClick.AddListener(action);
+    }
+    
+    void CreateMenuButton(Transform parent, string text, Vector2 position, Color color, UnityEngine.Events.UnityAction action)
+    {
+        // Backward compatible overload: uses text as id.
+        CreateMenuButton(parent, text, text, position, color, action);
     }
     
     void ShowNewGameConfirm()
@@ -725,7 +957,7 @@ public class GameManager : MonoBehaviour
         GameObject warnObj = new GameObject("Warning");
         warnObj.transform.SetParent(confirmPanel.transform, false);
         TextMeshProUGUI warn = warnObj.AddComponent<TextMeshProUGUI>();
-        warn.SetText("DIKKAT!\n\nTum ilerlemeniz silinecek!\n(${0} para kaybedilecek)", money);
+        warn.SetText(T("confirm.newGame.warningFmt", "DİKKAT!\n\nTüm ilerlemeniz silinecek!\n(${0} para kaybedilecek)"), money);
         warn.fontSize = 20;
         warn.color = new Color(1f, 0.8f, 0.4f);
         warn.alignment = TextAlignmentOptions.Center;
@@ -748,7 +980,7 @@ public class GameManager : MonoBehaviour
         yesRect.anchoredPosition = new Vector2(20, 20);
         yesRect.sizeDelta = new Vector2(-30, 50);
 
-        CreateStretchedLabel(yesBtn.transform, "Text", "EVET, SIL", 18, Color.white);
+        CreateStretchedLabel(yesBtn.transform, "Text", T("confirm.newGame.yesDelete", "EVET, SİL"), 18, Color.white);
         
         yesBtnComp.onClick.AddListener(() => {
             Destroy(confirmPanel);
@@ -768,7 +1000,7 @@ public class GameManager : MonoBehaviour
         noRect.anchoredPosition = new Vector2(-20, 20);
         noRect.sizeDelta = new Vector2(-30, 50);
 
-        CreateStretchedLabel(noBtn.transform, "Text", "VAZGEC", 18, Color.white);
+        CreateStretchedLabel(noBtn.transform, "Text", T("confirm.newGame.no", "HAYIR"), 18, Color.white);
         
         noBtnComp.onClick.AddListener(() => Destroy(confirmPanel));
     }
@@ -779,9 +1011,10 @@ public class GameManager : MonoBehaviour
         {
             ResetProgressPrefs();
             money = 0;
-
-            // Scene reload sonrası otomatik başlat
-            PlayerPrefs.SetInt(PREF_PENDING_AUTOSTART, 1);
+            // After New Game, stay on the main menu (do not auto-start).
+            // Also ensure the primary (Continue) slot is visible, but labeled as START.
+            PlayerPrefs.SetInt(PREF_FIRST_START, 0);
+            PlayerPrefs.DeleteKey(PREF_PENDING_AUTOSTART);
             PlayerPrefs.Save();
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
             return;
@@ -789,37 +1022,37 @@ public class GameManager : MonoBehaviour
 
         PlayerPrefs.SetInt(PREF_FIRST_START, 0);
         PlayerPrefs.Save();
-        
-        // Menüyü kapat
-        if (mainMenuPanel != null)
-            mainMenuPanel.SetActive(false);
-        
-        // Oyunu başlat
+
         isGameActive = true;
-        isFirstStart = false;
+
         // Başlarken tüm pause kaynaklarını temizle
         pauseMask = PauseSource.None;
         uiPauseRequests = 0;
         ApplyPauseState();
 
+        if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
         if (pausePanel != null) pausePanel.SetActive(false);
         if (shopPanel != null) shopPanel.SetActive(false);
-        
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
         UpdateMoneyUI();
+
     }
 
     void Start()
     {
-        dayNightCycle = FindFirstObjectByType<DayNightCycle>();
         cachedFishSpawner = FindFirstObjectByType<FishSpawner>();
         UpdateMoneyUI();
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+        // Ensure subscriptions are set after all Awake() calls.
+        SubscribeToManagerEvents();
+
         if (pausePanel != null) pausePanel.SetActive(false);
-        
+
         // Ana menüyü göster
         if (!isGameActive && mainMenuPanel != null)
             mainMenuPanel.SetActive(true);
-        
+
         // Shop UI oluştur (Basitçe)
         CreateShopUI();
 
@@ -942,7 +1175,7 @@ public class GameManager : MonoBehaviour
     void UpdateMoneyUI()
     {
         if (moneyText != null)
-            moneyText.SetText("${0}", money);
+            moneyText.SetText(T("ui.moneyAmountFmt", "${0}"), money);
     }
 
     public void GameOver()
@@ -952,7 +1185,7 @@ public class GameManager : MonoBehaviour
         {
             gameOverPanel.SetActive(true);
             if (finalScoreText != null)
-                finalScoreText.SetText("Total Money: ${0}", money);
+                finalScoreText.SetText(T("gameOver.totalMoneyFmt", "Toplam Para: ${0}"), money);
         }
 
         SetPause(PauseSource.GameOver, true);
@@ -1022,7 +1255,7 @@ public class GameManager : MonoBehaviour
         GameObject titleObj = new GameObject("Title");
         titleObj.transform.SetParent(titleBar.transform, false);
         TextMeshProUGUI title = titleObj.AddComponent<TextMeshProUGUI>();
-        title.text = "MARKET";
+        title.text = T("shop.title", "SHOP");
         title.fontSize = 26;
         title.alignment = TextAlignmentOptions.Center;
         title.fontStyle = FontStyles.Bold;
@@ -1133,8 +1366,9 @@ public class GameManager : MonoBehaviour
         tabBarRect.anchoredPosition = new Vector2(0, -50);
         tabBarRect.sizeDelta = new Vector2(0, 35);
         
-        string[] tabNames = { "Misina", "Tekne", "Balik Pazari" };
-        for (int i = 0; i < tabNames.Length; i++)
+        string[] tabKeys = { "shop.tab.line", "shop.tab.boat", "shop.tab.fishMarket" };
+        string[] tabFallbacks = { "LINE", "BOAT", "FISH MARKET" };
+        for (int i = 0; i < tabKeys.Length; i++)
         {
             int tabIndex = i;
             GameObject tabBtn = new GameObject("Tab_" + i);
@@ -1146,12 +1380,13 @@ public class GameManager : MonoBehaviour
             TextMeshProUGUI txt = CreateStretchedLabel(
                 tabBtn.transform,
                 "Text",
-                tabNames[i],
+                T(tabKeys[i], tabFallbacks[i]),
                 14,
                 (i == currentShopTab) ? Color.white : new Color(0.6f, 0.6f, 0.6f));
             txt.fontStyle = FontStyles.Bold;
-            
-            btn.onClick.AddListener(() => {
+
+            btn.onClick.AddListener(() =>
+            {
                 currentShopTab = tabIndex;
                 UpdateShopUI();
             });
@@ -1197,7 +1432,7 @@ public class GameManager : MonoBehaviour
             // Genel geliştirmeler de tekne sekmesinde göster
             if (currentShopTab == 1)
             {
-                CreateCategoryHeader(container, "GENEL");
+                CreateCategoryHeader(container, T("shop.category.general", "GENEL"));
                 CreateUpgradeItems(container, UpgradeCategory.General);
             }
         }
@@ -1268,7 +1503,7 @@ public class GameManager : MonoBehaviour
             GameObject iconObj = new GameObject("Icon");
             iconObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI iconTxt = iconObj.AddComponent<TextMeshProUGUI>();
-            iconTxt.text = upg.icon;
+            iconTxt.text = T($"shop.icon.{upg.icon}", upg.icon);
             iconTxt.fontSize = 22;
             iconTxt.alignment = TextAlignmentOptions.Center;
             LayoutElement iconLayout = iconObj.AddComponent<LayoutElement>();
@@ -1280,7 +1515,9 @@ public class GameManager : MonoBehaviour
             nameObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI nameTxt = nameObj.AddComponent<TextMeshProUGUI>();
             int level = UpgradeManager.instance.GetLevel(upg.type);
-            nameTxt.text = $"<color=#FFD700>{upg.turkishName}</color>\n<size=10><color=#AAA>{upg.description}</color></size>";
+            string upgTitle = LocalizationManager.T($"upgrade.{upg.type}.name", upg.turkishName);
+            string upgDesc = LocalizationManager.T($"upgrade.{upg.type}.desc", upg.description);
+            nameTxt.text = $"<color=#FFD700>{upgTitle}</color>\n<size=10><color=#AAA>{upgDesc}</color></size>";
             nameTxt.fontSize = 13;
             nameTxt.alignment = TextAlignmentOptions.Left;
             LayoutElement nameLayout = nameObj.AddComponent<LayoutElement>();
@@ -1291,7 +1528,7 @@ public class GameManager : MonoBehaviour
             GameObject levelObj = new GameObject("Level");
             levelObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI levelTxt = levelObj.AddComponent<TextMeshProUGUI>();
-            levelTxt.text = $"Lv.{level}/{upg.maxLevel}";
+            levelTxt.SetText(T("shop.levelFmt", "Lv.{0}/{1}"), level, upg.maxLevel);
             levelTxt.fontSize = 12;
             levelTxt.alignment = TextAlignmentOptions.Center;
             levelTxt.color = new Color(0.5f, 0.8f, 1f);
@@ -1324,14 +1561,14 @@ public class GameManager : MonoBehaviour
             
             if (cost < 0)
             {
-                buyTxt.text = "MAX";
+                buyTxt.text = T("shop.max", "MAX");
                 buyTxt.color = new Color(0.6f, 0.6f, 0.6f);
                 buyImg.color = new Color(0.2f, 0.2f, 0.25f);
                 btn.interactable = false;
             }
             else if (money >= cost)
             {
-                buyTxt.text = "$" + cost;
+                buyTxt.SetText(T("ui.moneyAmountFmt", "${0}"), cost);
                 buyTxt.color = Color.white;
                 buyImg.color = new Color(0.15f, 0.5f, 0.2f);
                 var upgCopy = upg;
@@ -1345,7 +1582,7 @@ public class GameManager : MonoBehaviour
             }
             else
             {
-                buyTxt.text = "$" + cost;
+                buyTxt.SetText(T("ui.moneyAmountFmt", "${0}"), cost);
                 buyTxt.color = new Color(0.8f, 0.4f, 0.4f);
                 buyImg.color = new Color(0.4f, 0.15f, 0.15f);
                 btn.interactable = false;
@@ -1356,7 +1593,7 @@ public class GameManager : MonoBehaviour
     void CreateFishMarket(Transform container)
     {
         // Başlık
-        CreateCategoryHeader(container, "BALIK FIYATLARI");
+        CreateCategoryHeader(container, T("shop.fishPricesTitle", "FISH PRICES"));
         
         // Hava durumu bonusu
         float weatherBonus = 1f;
@@ -1376,7 +1613,7 @@ public class GameManager : MonoBehaviour
             GameObject bonusTxt = new GameObject("Text");
             bonusTxt.transform.SetParent(bonusObj.transform, false);
             TextMeshProUGUI txt = bonusTxt.AddComponent<TextMeshProUGUI>();
-            txt.text = $"<color=#90EE90>Hava Durumu Bonusu Aktif!</color>{weatherInfo}";
+            txt.text = string.Format(T("shop.weatherBonusActiveRichFmt", "<color=#90EE90>Hava Durumu Bonusu Aktif!</color>{0}"), weatherInfo);
             txt.fontSize = 12;
             txt.alignment = TextAlignmentOptions.Center;
             RectTransform txtRect = txt.rectTransform;
@@ -1486,10 +1723,20 @@ public class GameManager : MonoBehaviour
             GameObject rarityObj = new GameObject("Rarity");
             rarityObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI rarityTxt = rarityObj.AddComponent<TextMeshProUGUI>();
-            string rarityStr = rarity <= 0.05f ? "<color=#FF66FF>Efsanevi</color>" :
-                              rarity <= 0.1f ? "<color=#9966FF>Nadir</color>" :
-                              rarity <= 0.2f ? "<color=#66CCFF>Uncommon</color>" :
-                              "<color=#AAAAAA>Common</color>";
+            string rarityLabel = rarity <= 0.05f
+                ? T("shop.rarity.legendary", "Efsanevi")
+                : rarity <= 0.1f
+                    ? T("shop.rarity.rare", "Nadir")
+                    : rarity <= 0.2f
+                        ? T("shop.rarity.uncommon", "Sıradışı")
+                        : T("shop.rarity.common", "Yaygın");
+            string rarityStr = rarity <= 0.05f
+                ? $"<color=#FF66FF>{rarityLabel}</color>"
+                : rarity <= 0.1f
+                    ? $"<color=#9966FF>{rarityLabel}</color>"
+                    : rarity <= 0.2f
+                        ? $"<color=#66CCFF>{rarityLabel}</color>"
+                        : $"<color=#AAAAAA>{rarityLabel}</color>";
             rarityTxt.text = rarityStr;
             rarityTxt.fontSize = 11;
             rarityTxt.alignment = TextAlignmentOptions.Center;
@@ -1502,7 +1749,7 @@ public class GameManager : MonoBehaviour
             priceObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI priceTxt = priceObj.AddComponent<TextMeshProUGUI>();
             int finalPrice = Mathf.RoundToInt(fish.score * weatherBonus);
-            priceTxt.text = $"<color=#90EE90>${finalPrice}</color>";
+            priceTxt.text = string.Format(T("shop.priceRichFmt", "<color=#90EE90>${0}</color>"), finalPrice);
             priceTxt.fontSize = 14;
             priceTxt.fontStyle = FontStyles.Bold;
             priceTxt.alignment = TextAlignmentOptions.Right;
@@ -1518,7 +1765,7 @@ public class GameManager : MonoBehaviour
         infoLayout.preferredHeight = 50;
         
         TextMeshProUGUI infoTxt = infoObj.AddComponent<TextMeshProUGUI>();
-        infoTxt.text = "<size=11><color=#888>Firtinali havalarda nadir baliklar daha sik cikar!\nSansli Yem gelistirmesi nadir balik sansini artirir.</color></size>";
+        infoTxt.text = T("shop.info", "<size=11><color=#888>In stormy weather, rare fish appear more often!\nThe Lucky Bait upgrade increases rare fish chance.</color></size>");
         infoTxt.fontSize = 11;
         infoTxt.alignment = TextAlignmentOptions.Center;
     }
@@ -1616,7 +1863,7 @@ public class GameManager : MonoBehaviour
         contentRect.anchorMin = new Vector2(0.5f, 0.5f);
         contentRect.anchorMax = new Vector2(0.5f, 0.5f);
         contentRect.pivot = new Vector2(0.5f, 0.5f);
-        contentRect.sizeDelta = new Vector2(400, 300);
+        contentRect.sizeDelta = new Vector2(480, 580);
 
         Outline outline = content.AddComponent<Outline>();
         outline.effectColor = new Color(0.3f, 0.6f, 0.9f, 0.5f);
@@ -1626,7 +1873,7 @@ public class GameManager : MonoBehaviour
         GameObject titleObj = new GameObject("Title");
         titleObj.transform.SetParent(content.transform, false);
         TextMeshProUGUI title = titleObj.AddComponent<TextMeshProUGUI>();
-        title.text = "AYARLAR";
+        title.text = T("settings.title", "SETTINGS");
         title.fontSize = 32;
         title.alignment = TextAlignmentOptions.Center;
         title.fontStyle = FontStyles.Bold;
@@ -1638,25 +1885,72 @@ public class GameManager : MonoBehaviour
         titleRect.anchoredPosition = new Vector2(0, -30);
         titleRect.sizeDelta = new Vector2(0, 50);
 
+        // Dil Başlık
+        GameObject langTitleObj = new GameObject("LanguageTitle");
+        langTitleObj.transform.SetParent(content.transform, false);
+        TextMeshProUGUI langTitle = langTitleObj.AddComponent<TextMeshProUGUI>();
+        langTitle.text = T("settings.language", "Dil");
+        langTitle.fontSize = 18;
+        langTitle.alignment = TextAlignmentOptions.Center;
+        langTitle.color = new Color(0.7f, 0.8f, 0.9f);
+        RectTransform langTitleRect = langTitle.rectTransform;
+        langTitleRect.anchorMin = new Vector2(0.5f, 1f);
+        langTitleRect.anchorMax = new Vector2(0.5f, 1f);
+        langTitleRect.pivot = new Vector2(0.5f, 1f);
+        langTitleRect.anchoredPosition = new Vector2(0, -90);
+        langTitleRect.sizeDelta = new Vector2(300, 30);
+
+        // Dil Seçici Container
+        GameObject langSelector = new GameObject("LanguageSelector");
+        langSelector.transform.SetParent(content.transform, false);
+        RectTransform lsRect = langSelector.AddComponent<RectTransform>();
+        lsRect.anchorMin = new Vector2(0.5f, 1f);
+        lsRect.anchorMax = new Vector2(0.5f, 1f);
+        lsRect.pivot = new Vector2(0.5f, 1f);
+        lsRect.anchoredPosition = new Vector2(0, -125);
+        lsRect.sizeDelta = new Vector2(300, 50);
+
+        CreateArrowButton(langSelector.transform, "<", new Vector2(-120, 0), () => ChangeLanguage(-1));
+        CreateArrowButton(langSelector.transform, ">", new Vector2(120, 0), () => ChangeLanguage(1));
+
+        GameObject langNameObj = new GameObject("LanguageName");
+        langNameObj.transform.SetParent(langSelector.transform, false);
+        TextMeshProUGUI langName = langNameObj.AddComponent<TextMeshProUGUI>();
+        langName.text = (Settings != null && Settings.Language == GameLanguage.English)
+            ? T("language.english", "English")
+            : T("language.turkish", "Türkçe");
+        langName.fontSize = 20;
+        langName.alignment = TextAlignmentOptions.Center;
+        langName.color = Color.yellow;
+        RectTransform langNameRect = langName.rectTransform;
+        langNameRect.anchorMin = Vector2.zero;
+        langNameRect.anchorMax = Vector2.one;
+        langNameRect.offsetMin = new Vector2(40, 0);
+        langNameRect.offsetMax = new Vector2(-40, 0);
+
         // Font Seçimi Başlık
         GameObject fontTitleObj = new GameObject("FontTitle");
         fontTitleObj.transform.SetParent(content.transform, false);
         TextMeshProUGUI fontTitle = fontTitleObj.AddComponent<TextMeshProUGUI>();
-        fontTitle.text = "Yazı Tipi (Font)";
+        fontTitle.text = T("settings.font", "Yazı Tipi (Font)");
         fontTitle.fontSize = 18;
         fontTitle.alignment = TextAlignmentOptions.Center;
         fontTitle.color = new Color(0.7f, 0.8f, 0.9f);
         RectTransform fontTitleRect = fontTitle.rectTransform;
-        fontTitleRect.anchorMin = new Vector2(0.5f, 0.5f);
-        fontTitleRect.anchoredPosition = new Vector2(0, 40);
+        fontTitleRect.anchorMin = new Vector2(0.5f, 1f);
+        fontTitleRect.anchorMax = new Vector2(0.5f, 1f);
+        fontTitleRect.pivot = new Vector2(0.5f, 1f);
+        fontTitleRect.anchoredPosition = new Vector2(0, -185);
         fontTitleRect.sizeDelta = new Vector2(300, 30);
 
         // Font Seçici Container
         GameObject fontSelector = new GameObject("FontSelector");
         fontSelector.transform.SetParent(content.transform, false);
         RectTransform fsRect = fontSelector.AddComponent<RectTransform>();
-        fsRect.anchorMin = new Vector2(0.5f, 0.5f);
-        fsRect.anchoredPosition = new Vector2(0, 0);
+        fsRect.anchorMin = new Vector2(0.5f, 1f);
+        fsRect.anchorMax = new Vector2(0.5f, 1f);
+        fsRect.pivot = new Vector2(0.5f, 1f);
+        fsRect.anchoredPosition = new Vector2(0, -220);
         fsRect.sizeDelta = new Vector2(300, 50);
 
         // Sol Ok
@@ -1669,7 +1963,7 @@ public class GameManager : MonoBehaviour
         GameObject fontNameObj = new GameObject("FontName");
         fontNameObj.transform.SetParent(fontSelector.transform, false);
         TextMeshProUGUI fontName = fontNameObj.AddComponent<TextMeshProUGUI>();
-        fontName.text = "Default";
+        fontName.text = T("settings.fontNone", "Font Yok");
         fontName.fontSize = 20;
         fontName.alignment = TextAlignmentOptions.Center;
         fontName.color = Color.yellow;
@@ -1678,6 +1972,37 @@ public class GameManager : MonoBehaviour
         fontNameRect.anchorMax = Vector2.one;
         fontNameRect.offsetMin = new Vector2(40, 0);
         fontNameRect.offsetMax = new Vector2(-40, 0);
+
+        // Ses Başlık
+        GameObject audioTitleObj = new GameObject("AudioTitle");
+        audioTitleObj.transform.SetParent(content.transform, false);
+        TextMeshProUGUI audioTitle = audioTitleObj.AddComponent<TextMeshProUGUI>();
+        audioTitle.text = T("settings.audio", "Ses");
+        audioTitle.fontSize = 18;
+        audioTitle.alignment = TextAlignmentOptions.Center;
+        audioTitle.color = new Color(0.7f, 0.8f, 0.9f);
+        RectTransform audioTitleRect = audioTitle.rectTransform;
+        audioTitleRect.anchorMin = new Vector2(0.5f, 1f);
+        audioTitleRect.anchorMax = new Vector2(0.5f, 1f);
+        audioTitleRect.pivot = new Vector2(0.5f, 1f);
+        audioTitleRect.anchoredPosition = new Vector2(0, -290);
+        audioTitleRect.sizeDelta = new Vector2(300, 30);
+
+        // Sliders / Toggles
+        Slider musicSlider = CreateLabeledSliderRow(content.transform, "MusicVolumeRow", new Vector2(0, -330));
+        musicSlider.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetMusicVolume(v); });
+
+        Slider sfxSlider = CreateLabeledSliderRow(content.transform, "SfxVolumeRow", new Vector2(0, -375));
+        sfxSlider.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetSfxVolume(v); });
+
+        Toggle muteToggle = CreateLabeledToggleRow(content.transform, "MuteRow", new Vector2(0, -420));
+        muteToggle.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetMuted(v); });
+
+        Slider shakeSlider = CreateLabeledSliderRow(content.transform, "ShakeRow", new Vector2(0, -465));
+        shakeSlider.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetShakeIntensity(v); });
+
+        Toggle rarityToggle = CreateLabeledToggleRow(content.transform, "ShowRarityRow", new Vector2(0, -510));
+        rarityToggle.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetShowRarityOnCatch(v); });
 
         // Kapat Butonu
         GameObject closeBtnObj = new GameObject("CloseButton");
@@ -1695,7 +2020,7 @@ public class GameManager : MonoBehaviour
         GameObject closeTxtObj = new GameObject("Text");
         closeTxtObj.transform.SetParent(closeBtnObj.transform, false);
         TextMeshProUGUI closeTxt = closeTxtObj.AddComponent<TextMeshProUGUI>();
-        closeTxt.text = "KAPAT";
+        closeTxt.text = T("settings.close", "CLOSE");
         closeTxt.fontSize = 18;
         closeTxt.alignment = TextAlignmentOptions.Center;
         closeTxt.color = Color.white;
@@ -1738,6 +2063,53 @@ public class GameManager : MonoBehaviour
     void UpdateSettingsUI()
     {
         if (settingsPanel == null) return;
+
+        // Başlıklar
+        Transform content = settingsPanel.transform.Find("Content");
+        if (content != null)
+        {
+            Transform titleObj = content.Find("Title");
+            if (titleObj != null)
+            {
+                var t = titleObj.GetComponent<TextMeshProUGUI>();
+                if (t != null) t.text = T("settings.title", "SETTINGS");
+            }
+
+            Transform langTitle = content.Find("LanguageTitle");
+            if (langTitle != null)
+            {
+                var t = langTitle.GetComponent<TextMeshProUGUI>();
+                if (t != null) t.text = T("settings.language", "Dil");
+            }
+
+            Transform fontTitle = content.Find("FontTitle");
+            if (fontTitle != null)
+            {
+                var t = fontTitle.GetComponent<TextMeshProUGUI>();
+                if (t != null) t.text = T("settings.font", "Yazı Tipi (Font)");
+            }
+
+            Transform audioTitle = content.Find("AudioTitle");
+            if (audioTitle != null)
+            {
+                var t = audioTitle.GetComponent<TextMeshProUGUI>();
+                if (t != null) t.text = T("settings.audio", "Ses");
+            }
+        }
+
+        // Dil adı
+        if (Settings != null)
+        {
+            Transform langSelector = settingsPanel.transform.Find("Content/LanguageSelector/LanguageName");
+            if (langSelector != null)
+            {
+                var t = langSelector.GetComponent<TextMeshProUGUI>();
+                if (t != null)
+                    t.text = Settings.Language == GameLanguage.English
+                        ? T("language.english", "English")
+                        : T("language.turkish", "Türkçe");
+            }
+        }
         
         Transform fontSelector = settingsPanel.transform.Find("Content/FontSelector");
         if (fontSelector != null)
@@ -1753,9 +2125,152 @@ public class GameManager : MonoBehaviour
                 }
                 else
                 {
-                    txt.text = "Font Yok";
+                    txt.text = T("settings.fontNone", "Font Yok");
                 }
             }
         }
+
+        // Slider/Toggle değerlerini senkronla
+        if (Settings != null)
+        {
+            // Music
+            Transform musicRow = settingsPanel.transform.Find("Content/MusicVolumeRow");
+            if (musicRow != null)
+            {
+                var label = musicRow.Find("Label")?.GetComponent<TextMeshProUGUI>();
+                if (label != null) label.text = T("settings.music", "Müzik");
+                var slider = musicRow.Find("Slider")?.GetComponent<Slider>();
+                var value = musicRow.Find("Value")?.GetComponent<TextMeshProUGUI>();
+                if (slider != null) slider.SetValueWithoutNotify(Settings.MusicVolume);
+                if (value != null) value.text = $"{Mathf.RoundToInt(Settings.MusicVolume * 100f)}%";
+            }
+
+            // SFX
+            Transform sfxRow = settingsPanel.transform.Find("Content/SfxVolumeRow");
+            if (sfxRow != null)
+            {
+                var label = sfxRow.Find("Label")?.GetComponent<TextMeshProUGUI>();
+                if (label != null) label.text = T("settings.sfx", "Efekt");
+                var slider = sfxRow.Find("Slider")?.GetComponent<Slider>();
+                var value = sfxRow.Find("Value")?.GetComponent<TextMeshProUGUI>();
+                if (slider != null) slider.SetValueWithoutNotify(Settings.SfxVolume);
+                if (value != null) value.text = $"{Mathf.RoundToInt(Settings.SfxVolume * 100f)}%";
+            }
+
+            // Mute
+            Transform muteRow = settingsPanel.transform.Find("Content/MuteRow");
+            if (muteRow != null)
+            {
+                var label = muteRow.Find("Label")?.GetComponent<TextMeshProUGUI>();
+                if (label != null) label.text = T("settings.mute", "Mute");
+                var toggle = muteRow.Find("Toggle")?.GetComponent<Toggle>();
+                if (toggle != null) toggle.SetIsOnWithoutNotify(Settings.Muted);
+            }
+
+            // Shake
+            Transform shakeRow = settingsPanel.transform.Find("Content/ShakeRow");
+            if (shakeRow != null)
+            {
+                var label = shakeRow.Find("Label")?.GetComponent<TextMeshProUGUI>();
+                if (label != null) label.text = T("settings.shake", "Ekran Sallantısı");
+                var slider = shakeRow.Find("Slider")?.GetComponent<Slider>();
+                var value = shakeRow.Find("Value")?.GetComponent<TextMeshProUGUI>();
+                if (slider != null) slider.SetValueWithoutNotify(Settings.ShakeIntensity);
+                if (value != null) value.text = $"{Mathf.RoundToInt(Settings.ShakeIntensity * 100f)}%";
+            }
+
+            // Show rarity
+            Transform rarityRow = settingsPanel.transform.Find("Content/ShowRarityRow");
+            if (rarityRow != null)
+            {
+                var label = rarityRow.Find("Label")?.GetComponent<TextMeshProUGUI>();
+                if (label != null) label.text = T("settings.showRarity", "Yakalamada Nadirlik");
+                var toggle = rarityRow.Find("Toggle")?.GetComponent<Toggle>();
+                if (toggle != null) toggle.SetIsOnWithoutNotify(Settings.ShowRarityOnCatch);
+            }
+
+            // Close
+            Transform closeText = settingsPanel.transform.Find("Content/CloseButton/Text");
+            if (closeText != null)
+            {
+                var t = closeText.GetComponent<TextMeshProUGUI>();
+                if (t != null) t.text = T("settings.close", "CLOSE");
+            }
+        }
+    }
+
+    private void UpdateMainMenuLocalizedText()
+    {
+        if (mainMenuPanel == null) return;
+
+        var title = mainMenuPanel.transform.Find("Content/Title")?.GetComponent<TextMeshProUGUI>();
+        if (title != null) title.text = T("menu.title", title.text);
+
+        var subtitle = mainMenuPanel.transform.Find("Content/Subtitle")?.GetComponent<TextMeshProUGUI>();
+        if (subtitle != null) subtitle.text = T("menu.subtitle", subtitle.text);
+
+        var controls = mainMenuPanel.transform.Find("Content/Controls")?.GetComponent<TextMeshProUGUI>();
+        if (controls != null) controls.text = T("menu.controls", controls.text);
+
+        // Buttons created with CreateMenuButton => Button_<ID>/Text
+        var continueTxt = mainMenuPanel.transform.Find("Content/Button_Continue/Text")?.GetComponent<TextMeshProUGUI>();
+        if (continueTxt != null)
+        {
+            string primaryKey = money == 0 ? "menu.start" : "menu.continue";
+            string primaryFallback = money == 0 ? "START" : continueTxt.text;
+            continueTxt.text = T(primaryKey, primaryFallback);
+        }
+
+        var newGameTxt = mainMenuPanel.transform.Find("Content/Button_NewGame/Text")?.GetComponent<TextMeshProUGUI>();
+        if (newGameTxt != null) newGameTxt.text = T("menu.newGame", newGameTxt.text);
+
+        var settingsTxt = mainMenuPanel.transform.Find("Content/Button_Settings/Text")?.GetComponent<TextMeshProUGUI>();
+        if (settingsTxt != null) settingsTxt.text = T("menu.settings", settingsTxt.text);
+
+        var moneyInfo = mainMenuPanel.transform.Find("Content/MoneyInfo")?.GetComponent<TextMeshProUGUI>();
+        if (moneyInfo != null)
+            moneyInfo.SetText(T("menu.totalMoneyFmt", "Toplam Para: ${0}"), money);
+    }
+
+    private void UpdatePauseLocalizedText()
+    {
+        if (pausePanel == null) return;
+        var t = pausePanel.transform.Find("PauseText")?.GetComponent<TextMeshProUGUI>();
+        if (t != null) t.text = T("pause.title", t.text);
+    }
+
+    private void UpdateGameOverLocalizedText()
+    {
+        if (gameOverPanel == null) return;
+        var title = gameOverPanel.transform.Find("Title")?.GetComponent<TextMeshProUGUI>();
+        if (title != null) title.text = T("gameOver.title", title.text);
+
+        if (finalScoreText != null)
+            finalScoreText.SetText(T("gameOver.totalMoneyFmt", "Toplam Para: ${0}"), money);
+    }
+
+    private void UpdateShopLocalizedText()
+    {
+        if (shopPanel == null) return;
+
+        var title = shopPanel.transform.Find("TitleBar/Title")?.GetComponent<TextMeshProUGUI>();
+        if (title != null) title.text = T("shop.title", title.text);
+
+        // Tabs
+        var tabBar = shopPanel.transform.Find("TabBar");
+        if (tabBar != null)
+        {
+            string[] tabKeys = { "shop.tab.line", "shop.tab.boat", "shop.tab.fishMarket" };
+            string[] tabFallbacks = { "LINE", "BOAT", "FISH MARKET" };
+            for (int i = 0; i < tabBar.childCount && i < tabKeys.Length; i++)
+            {
+                var tabText = tabBar.GetChild(i).Find("Text")?.GetComponent<TextMeshProUGUI>();
+                if (tabText != null) tabText.text = T(tabKeys[i], tabFallbacks[i]);
+            }
+        }
+
+        // If open, rebuild content so market/rarity strings refresh.
+        if (shopPanel.activeSelf)
+            UpdateShopUI();
     }
 }

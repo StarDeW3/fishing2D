@@ -75,20 +75,20 @@ public class UpgradeManager : MonoBehaviour
                 new UpgradeDef { 
                     name = "Line Length", 
                     turkishName = "Misina Uzunlugu",
-                    description = "Daha uzaga at",
-                    icon = "UZUN",
+                    description = "Cast farther",
+                    icon = "LINE",
                     type = UpgradeType.CastDistance, 
                     category = UpgradeCategory.Line,
                     baseCost = 50, 
-                    baseValue = 5f, 
-                    valuePerLevel = 1.5f, 
+                    baseValue = 0f, 
+                    valuePerLevel = 0.4f, 
                     maxLevel = 10 
                 },
                 new UpgradeDef { 
                     name = "Reel Speed", 
                     turkishName = "Cekme Hizi",
-                    description = "Baligi daha hizli cek",
-                    icon = "HIZ",
+                    description = "Reel fish faster",
+                    icon = "SPD",
                     type = UpgradeType.ReelSpeed, 
                     category = UpgradeCategory.Line,
                     baseCost = 75, 
@@ -99,8 +99,8 @@ public class UpgradeManager : MonoBehaviour
                 new UpgradeDef { 
                     name = "Hook Size", 
                     turkishName = "Kanca Boyutu",
-                    description = "Daha kolay yakala",
-                    icon = "KANCA",
+                    description = "Catch more easily",
+                    icon = "HOOK",
                     type = UpgradeType.BarSize, 
                     category = UpgradeCategory.Line,
                     baseCost = 100, 
@@ -111,8 +111,8 @@ public class UpgradeManager : MonoBehaviour
                 new UpgradeDef { 
                     name = "Line Strength", 
                     turkishName = "Misina Dayanikliligi",
-                    description = "Misina kopma sansi azalir",
-                    icon = "GUC",
+                    description = "Reduce line break chance",
+                    icon = "STR",
                     type = UpgradeType.LineStrength, 
                     category = UpgradeCategory.Line,
                     baseCost = 150, 
@@ -125,8 +125,8 @@ public class UpgradeManager : MonoBehaviour
                 new UpgradeDef { 
                     name = "Boat Speed", 
                     turkishName = "Tekne Hizi",
-                    description = "Daha hizli git",
-                    icon = "TEKNE",
+                    description = "Move faster",
+                    icon = "BOAT",
                     type = UpgradeType.BoatSpeed, 
                     category = UpgradeCategory.Boat,
                     baseCost = 100, 
@@ -137,8 +137,8 @@ public class UpgradeManager : MonoBehaviour
                 new UpgradeDef { 
                     name = "Boat Stability", 
                     turkishName = "Tekne Stabilitesi",
-                    description = "Dalgalarda daha az salla",
-                    icon = "DENGE",
+                    description = "Reduce wave wobble",
+                    icon = "STAB",
                     type = UpgradeType.BoatStability, 
                     category = UpgradeCategory.Boat,
                     baseCost = 200, 
@@ -149,20 +149,20 @@ public class UpgradeManager : MonoBehaviour
                 new UpgradeDef { 
                     name = "Fish Radar", 
                     turkishName = "Balik Radari",
-                    description = "Baliklari gor",
+                    description = "See fish",
                     icon = "RADAR",
                     type = UpgradeType.FishRadar, 
                     category = UpgradeCategory.Boat,
                     baseCost = 500, 
                     baseValue = 0f, 
-                    valuePerLevel = 5f, // Görüş mesafesi
+                    valuePerLevel = 0.25f, // Hook detection radius bonus
                     maxLevel = 3 
                 },
                 new UpgradeDef { 
                     name = "Storage", 
                     turkishName = "Depolama",
-                    description = "Bonus para kazan",
-                    icon = "DEPO",
+                    description = "Earn bonus money",
+                    icon = "STOR",
                     type = UpgradeType.StorageCapacity, 
                     category = UpgradeCategory.Boat,
                     baseCost = 300, 
@@ -175,8 +175,8 @@ public class UpgradeManager : MonoBehaviour
                 new UpgradeDef { 
                     name = "Lucky Bait", 
                     turkishName = "Sansli Yem",
-                    description = "Nadir balik sansi artar",
-                    icon = "SANS",
+                    description = "Increase rare fish chance",
+                    icon = "LUCK",
                     type = UpgradeType.Luck, 
                     category = UpgradeCategory.General,
                     baseCost = 200, 
@@ -237,11 +237,11 @@ public class UpgradeManager : MonoBehaviour
             PlayerPrefs.Save();
             
             Debug.Log($"{type} upgraded to level {currentLevels[type]}");
-            
-            // Tekne hızı güncelleme
-            if (type == UpgradeType.BoatSpeed && BoatController.instance != null)
+
+            // Apply any runtime effects immediately.
+            if (BoatController.instance != null)
             {
-                BoatController.instance.moveSpeed = GetValue(UpgradeType.BoatSpeed);
+                BoatController.instance.ApplyUpgrades();
             }
             
             return true;

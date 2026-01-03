@@ -61,6 +61,29 @@ public class UIManager : MonoBehaviour
         LoadStats();
     }
 
+    private void OnEnable()
+    {
+        if (LocalizationManager.instance != null)
+        {
+            LocalizationManager.instance.LanguageChanged -= OnLanguageChanged;
+            LocalizationManager.instance.LanguageChanged += OnLanguageChanged;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (LocalizationManager.instance != null)
+            LocalizationManager.instance.LanguageChanged -= OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged()
+    {
+        RefreshLocalizedStaticText();
+        RefreshStatsUI();
+        if (upgradePanel != null && upgradePanel.activeSelf)
+            RefreshUpgradeUI();
+    }
+
     void Start()
     {
         CreateAllUI();
@@ -72,13 +95,9 @@ public class UIManager : MonoBehaviour
         playTime += dt;
         if (dt > 0f) statsDirty = true;
 
-        // Tab tuşu - Upgrade Panel
+        // Tab tuşu - Upgrade Panel (özellik iptal edildi)
         if (UnityEngine.InputSystem.Keyboard.current != null)
         {
-            if (UnityEngine.InputSystem.Keyboard.current.tabKey.wasPressedThisFrame)
-            {
-                ToggleUpgradePanel();
-            }
             if (UnityEngine.InputSystem.Keyboard.current.iKey.wasPressedThisFrame)
             {
                 ToggleStatsPanel();
@@ -142,7 +161,11 @@ public class UIManager : MonoBehaviour
 
         CreateMainHUD();
 
-        CreateUpgradePanel();
+        // Upgrade panel özelliği iptal edildi
+        upgradePanel = null;
+        lineUpgradeContainer = null;
+        boatUpgradeContainer = null;
+        upgradeMoneyText = null;
         CreateStatsPanel();
 
         // Runtime oluşturulan tüm TMP yazılarında seçili fontun uygulanmasını garanti et
@@ -189,7 +212,7 @@ public class UIManager : MonoBehaviour
         
         // Kenar çizgisi
         // Başlık
-        CreateTextElement(upgradePanel.transform, "Title", "GELISTIRMELER",
+        CreateTextElement(upgradePanel.transform, "Title", LocalizationManager.T("ui.upgrades.title", "GELISTIRMELER"),
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -25), 36, TextAlignmentOptions.Center, new Color(0.9f, 0.95f, 1f));
 
         // Para Gösterimi
@@ -201,11 +224,11 @@ public class UIManager : MonoBehaviour
         CreateCloseButton(upgradePanel.transform, ToggleUpgradePanel);
 
         // Misina Geliştirmeleri Bölümü
-        CreateSectionHeader(upgradePanel.transform, "MISINA", new Vector2(0, -110));
+        CreateSectionHeader(upgradePanel.transform, LocalizationManager.T("ui.section.line", "LINE"), new Vector2(0, -110));
         lineUpgradeContainer = CreateUpgradeContainer(upgradePanel.transform, "LineUpgrades", new Vector2(0, -160));
 
         // Tekne Geliştirmeleri Bölümü
-        CreateSectionHeader(upgradePanel.transform, "TEKNE & GENEL", new Vector2(0, -370));
+        CreateSectionHeader(upgradePanel.transform, LocalizationManager.T("ui.section.boatGeneral", "BOAT & GENERAL"), new Vector2(0, -370));
         boatUpgradeContainer = CreateUpgradeContainer(upgradePanel.transform, "BoatUpgrades", new Vector2(0, -420));
 
         upgradePanel.SetActive(false);
@@ -230,7 +253,7 @@ public class UIManager : MonoBehaviour
         
         // Kenar efekti
         // Başlık
-        CreateTextElement(statsPanel.transform, "Title", "ISTATISTIKLER",
+        CreateTextElement(statsPanel.transform, "Title", LocalizationManager.T("ui.stats.title", "ISTATISTIKLER"),
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -20), 32, TextAlignmentOptions.Center, new Color(0.9f, 0.85f, 1f));
 
         // Kapat Butonu (Toggle ile kapat ki pause state düzgün çözülsün)
@@ -239,19 +262,19 @@ public class UIManager : MonoBehaviour
         // İstatistikler - daha kompakt
         float yPos = -70;
         
-        GameObject fishStatObj = CreateTextElement(statsPanel.transform, "TotalFish", "Balik: 0",
+        GameObject fishStatObj = CreateTextElement(statsPanel.transform, "TotalFish", LocalizationManager.Format("ui.stats.fishFmt", "Fish: {0}", 0),
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, yPos), 24, TextAlignmentOptions.Center);
         totalFishText = fishStatObj.GetComponent<TextMeshProUGUI>();
         totalFishText.color = new Color(0.5f, 1f, 0.8f);
         yPos -= 40;
 
-        GameObject moneyStatObj = CreateTextElement(statsPanel.transform, "TotalMoney", "Kazanc: $0",
+        GameObject moneyStatObj = CreateTextElement(statsPanel.transform, "TotalMoney", LocalizationManager.Format("ui.stats.earningsFmt", "Earnings: ${0}", 0),
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, yPos), 24, TextAlignmentOptions.Center);
         totalMoneyEarnedText = moneyStatObj.GetComponent<TextMeshProUGUI>();
         totalMoneyEarnedText.color = new Color(0.5f, 1f, 0.5f);
         yPos -= 40;
 
-        GameObject timeStatObj = CreateTextElement(statsPanel.transform, "PlayTime", "Sure: 0:00",
+        GameObject timeStatObj = CreateTextElement(statsPanel.transform, "PlayTime", LocalizationManager.Format("ui.stats.playTimeFmt", "Oynama Suresi: {0}:{1:00}", 0, 0),
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, yPos), 24, TextAlignmentOptions.Center);
         playTimeText = timeStatObj.GetComponent<TextMeshProUGUI>();
         playTimeText.color = new Color(1f, 0.9f, 0.5f);
@@ -371,6 +394,7 @@ public class UIManager : MonoBehaviour
 
     public void ToggleUpgradePanel()
     {
+        if (upgradePanel == null) return;
         bool isActive = !upgradePanel.activeSelf;
         upgradePanel.SetActive(isActive);
 
@@ -436,7 +460,7 @@ public class UIManager : MonoBehaviour
                 float waterLevel = cachedWaveManager.GetWaveHeight(cachedHook.transform.position.x);
                 depth = Mathf.Max(0, waterLevel - cachedHook.transform.position.y);
             }
-            depthText.SetText("Derinlik: {0:F1}m", depth);
+            depthText.SetText(LocalizationManager.T("ui.depthFmt", "Depth: {0:F1}m"), depth);
         }
     }
 
@@ -444,7 +468,7 @@ public class UIManager : MonoBehaviour
     {
         if (upgradeMoneyText != null && GameManager.instance != null)
         {
-            upgradeMoneyText.SetText("${0}", GameManager.instance.money);
+            upgradeMoneyText.SetText(LocalizationManager.T("ui.moneyAmountFmt", "${0}"), GameManager.instance.money);
         }
 
         // Misina Geliştirmelerini Göster
@@ -468,8 +492,11 @@ public class UIManager : MonoBehaviour
         var lineUpgrades = UpgradeManager.instance.GetUpgradesByCategory(UpgradeCategory.Line);
         foreach (var upg in lineUpgrades)
         {
-            CreateUpgradeCard(lineUpgradeContainer, upg.turkishName, upg.icon, upg.type,
-                upg.description, new Color(0.3f, 0.6f, 1f));
+            string titleKey = $"upgrade.{upg.type}.name";
+            string descKey = $"upgrade.{upg.type}.desc";
+            string title = LocalizationManager.T(titleKey, upg.turkishName);
+            string desc = LocalizationManager.T(descKey, upg.description);
+            CreateUpgradeCard(lineUpgradeContainer, title, upg.icon, upg.type, desc, new Color(0.3f, 0.6f, 1f));
         }
     }
 
@@ -487,16 +514,22 @@ public class UIManager : MonoBehaviour
         var boatUpgrades = UpgradeManager.instance.GetUpgradesByCategory(UpgradeCategory.Boat);
         foreach (var upg in boatUpgrades)
         {
-            CreateUpgradeCard(boatUpgradeContainer, upg.turkishName, upg.icon, upg.type,
-                upg.description, new Color(0.8f, 0.6f, 0.2f));
+            string titleKey = $"upgrade.{upg.type}.name";
+            string descKey = $"upgrade.{upg.type}.desc";
+            string title = LocalizationManager.T(titleKey, upg.turkishName);
+            string desc = LocalizationManager.T(descKey, upg.description);
+            CreateUpgradeCard(boatUpgradeContainer, title, upg.icon, upg.type, desc, new Color(0.8f, 0.6f, 0.2f));
         }
         
         // Genel kategorideki upgrade'leri de tekne bölümüne ekle
         var generalUpgrades = UpgradeManager.instance.GetUpgradesByCategory(UpgradeCategory.General);
         foreach (var upg in generalUpgrades)
         {
-            CreateUpgradeCard(boatUpgradeContainer, upg.turkishName, upg.icon, upg.type,
-                upg.description, new Color(0.3f, 0.8f, 0.3f));
+            string titleKey = $"upgrade.{upg.type}.name";
+            string descKey = $"upgrade.{upg.type}.desc";
+            string title = LocalizationManager.T(titleKey, upg.turkishName);
+            string desc = LocalizationManager.T(descKey, upg.description);
+            CreateUpgradeCard(boatUpgradeContainer, title, upg.icon, upg.type, desc, new Color(0.3f, 0.8f, 0.3f));
         }
     }
 
@@ -528,7 +561,10 @@ public class UIManager : MonoBehaviour
         TextMeshProUGUI iconTxt = iconObj.AddComponent<TextMeshProUGUI>();
         if (TMP_Settings.defaultFontAsset != null)
             iconTxt.font = TMP_Settings.defaultFontAsset;
-        iconTxt.text = icon;
+        if (!string.IsNullOrEmpty(icon))
+            iconTxt.text = LocalizationManager.T($"shop.icon.{icon}", icon);
+        else
+            iconTxt.text = string.Empty;
         iconTxt.fontSize = 28;
         iconTxt.alignment = TextAlignmentOptions.Center;
         LayoutElement iconLayout = iconObj.AddComponent<LayoutElement>();
@@ -545,8 +581,19 @@ public class UIManager : MonoBehaviour
         int level = UpgradeManager.instance.GetLevel(type);
         float value = UpgradeManager.instance.GetValue(type);
         int cost = UpgradeManager.instance.GetCost(type);
-        
-        infoTxt.text = $"<color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{title}</color>\n<size=12>Lv.{level} | {value:F1}</size>";
+
+        string levelFmt = LocalizationManager.T("ui.upgrade.levelFmt", "Lv.{0} | {1:F1}");
+        string levelLine;
+        try
+        {
+            levelLine = string.Format(levelFmt, level, value);
+        }
+        catch
+        {
+            levelLine = $"Lv.{level} | {value:F1}";
+        }
+
+        infoTxt.text = $"<color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{title}</color>\n<size=12>{levelLine}</size>";
         infoTxt.fontSize = 16;
         infoTxt.alignment = TextAlignmentOptions.Left;
         infoTxt.color = Color.white;
@@ -585,7 +632,7 @@ public class UIManager : MonoBehaviour
         TextMeshProUGUI btnTxt = btnTxtObj.AddComponent<TextMeshProUGUI>();
         if (TMP_Settings.defaultFontAsset != null)
             btnTxt.font = TMP_Settings.defaultFontAsset;
-        btnTxt.text = isMaxed ? "MAX" : $"${cost}";
+        btnTxt.text = isMaxed ? LocalizationManager.T("shop.max", "MAX") : $"${cost}";
         btnTxt.fontSize = 14;
         btnTxt.alignment = TextAlignmentOptions.Center;
         btnTxt.fontStyle = FontStyles.Bold;
@@ -621,16 +668,43 @@ public class UIManager : MonoBehaviour
     void RefreshStatsUI()
     {
         if (totalFishText != null)
-            totalFishText.SetText("Balik: {0}", totalFishCaught);
+            totalFishText.SetText(LocalizationManager.T("ui.stats.fishFmt", "Fish: {0}"), totalFishCaught);
         
         if (totalMoneyEarnedText != null)
-            totalMoneyEarnedText.SetText("Kazanc: ${0}", totalMoneyEarned);
+            totalMoneyEarnedText.SetText(LocalizationManager.T("ui.stats.earningsFmt", "Earnings: ${0}"), totalMoneyEarned);
         
         if (playTimeText != null)
         {
             int minutes = Mathf.FloorToInt(playTime / 60);
             int seconds = Mathf.FloorToInt(playTime % 60);
-            playTimeText.SetText("Oynama Suresi: {0}:{1:00}", minutes, seconds);
+            playTimeText.SetText(LocalizationManager.T("ui.stats.playTimeFmt", "Oynama Suresi: {0}:{1:00}"), minutes, seconds);
+        }
+    }
+
+    private void RefreshLocalizedStaticText()
+    {
+        if (upgradePanel != null)
+        {
+            var title = upgradePanel.transform.Find("Title")?.GetComponent<TextMeshProUGUI>();
+            if (title != null) title.text = LocalizationManager.T("ui.upgrades.title", title.text);
+
+            // Section headers are named SectionHeader; first is line, second is boat+general
+            var headers = upgradePanel.GetComponentsInChildren<TextMeshProUGUI>(true);
+            int seen = 0;
+            foreach (var t in headers)
+            {
+                if (t == null) continue;
+                if (t.gameObject.name != "SectionHeader") continue;
+                seen++;
+                if (seen == 1) t.text = LocalizationManager.T("ui.section.line", t.text);
+                else if (seen == 2) t.text = LocalizationManager.T("ui.section.boatGeneral", t.text);
+            }
+        }
+
+        if (statsPanel != null)
+        {
+            var title = statsPanel.transform.Find("Title")?.GetComponent<TextMeshProUGUI>();
+            if (title != null) title.text = LocalizationManager.T("ui.stats.title", title.text);
         }
     }
 
@@ -642,7 +716,7 @@ public class UIManager : MonoBehaviour
         FlushStatsIfDue();
 
         if (fishCountText != null)
-            fishCountText.SetText("x {0}", totalFishCaught);
+            fishCountText.SetText(LocalizationManager.T("ui.fishCountFmt", "x {0}"), totalFishCaught);
     }
 
     void SaveStatsInternal()

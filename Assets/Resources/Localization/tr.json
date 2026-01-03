@@ -1,0 +1,107 @@
+{
+  "entries": [
+    {"key":"language.turkish","value":"Türkçe"},
+    {"key":"language.english","value":"English"},
+
+    {"key":"settings.title","value":"AYARLAR"},
+    {"key":"settings.close","value":"KAPAT"},
+    {"key":"settings.language","value":"Dil"},
+    {"key":"settings.audio","value":"Ses"},
+    {"key":"settings.font","value":"Yazı Tipi (Font)"},
+    {"key":"settings.fontNone","value":"Font Yok"},
+    {"key":"settings.music","value":"Müzik"},
+    {"key":"settings.sfx","value":"Efekt"},
+    {"key":"settings.mute","value":"Sesi Kapat"},
+    {"key":"settings.shake","value":"Ekran Sallantısı"},
+    {"key":"settings.showRarity","value":"Yakalamada Nadirlik"},
+
+    {"key":"menu.title","value":"BALIKCI"},
+    {"key":"menu.subtitle","value":"2D Balık Tutma Oyunu"},
+    {"key":"menu.totalMoneyFmt","value":"Toplam Para: ${0}"},
+    {"key":"menu.start","value":"BAŞLA"},
+    {"key":"menu.continue","value":"DEVAM ET"},
+    {"key":"menu.newGame","value":"YENİ OYUN"},
+    {"key":"menu.settings","value":"AYARLAR"},
+    {"key":"menu.controls","value":"<size=14><color=#888>A/D: Hareket | SPACE: Balık Tut | B: Dükkan | ESC: Duraklat</color></size>"},
+
+    {"key":"confirm.newGame.warningFmt","value":"DİKKAT!\n\nTüm ilerlemeniz silinecek!\n(${0} para kaybedilecek)"},
+    {"key":"confirm.newGame.yesDelete","value":"EVET, SİL"},
+    {"key":"confirm.newGame.no","value":"HAYIR"},
+
+    {"key":"pause.title","value":"DURAKLATILDI"},
+    {"key":"gameOver.title","value":"OYUN BİTTİ"},
+    {"key":"gameOver.totalMoneyFmt","value":"Toplam Para: ${0}"},
+
+    {"key":"shop.title","value":"MARKET"},
+    {"key":"shop.max","value":"MAX"},
+    {"key":"shop.tab.line","value":"MİSİNA"},
+    {"key":"shop.tab.boat","value":"TEKNE"},
+    {"key":"shop.tab.fishMarket","value":"BALIK PAZARI"},
+    {"key":"shop.levelFmt","value":"Sv.{0}/{1}"},
+    {"key":"shop.priceRichFmt","value":"<color=#90EE90>${0}</color>"},
+    {"key":"shop.rarity.common","value":"Yaygın"},
+    {"key":"shop.rarity.uncommon","value":"Sıradışı"},
+    {"key":"shop.rarity.rare","value":"Nadir"},
+    {"key":"shop.rarity.epic","value":"Destansı"},
+    {"key":"shop.rarity.legendary","value":"Efsanevi"},
+    {"key":"shop.info","value":"<size=11><color=#888>Fırtınalı havalarda nadir balıklar daha sık çıkar!\nŞanslı Yem geliştirmesi nadir balık şansını artırır.</color></size>"},
+
+    {"key":"feedback.caughtFmt","value":"{0}{1} yakaladın!\n+${2}"},
+    {"key":"feedback.escaped","value":"Balık kaçtı!"},
+
+    {"key":"fish.defaultName","value":"Balık"},
+
+    {"key":"minigame.hooked","value":"YAKALANDI!"},
+    {"key":"minigame.reeling","value":"ÇEKİYORSUN!"},
+    {"key":"minigame.escaping","value":"KAÇIYOR!"},
+
+    {"key":"ui.upgrades.title","value":"GELİŞTİRMELER"},
+    {"key":"ui.stats.title","value":"İSTATİSTİKLER"},
+    {"key":"ui.section.line","value":"MİSİNA"},
+    {"key":"ui.section.boatGeneral","value":"TEKNE & GENEL"},
+    {"key":"ui.upgrade.levelFmt","value":"Sv.{0} | {1:F1}"},
+    {"key":"ui.moneyAmountFmt","value":"${0}"},
+    {"key":"ui.fishCountFmt","value":"x {0}"},
+    {"key":"ui.depthFmt","value":"Derinlik: {0:F1}m"},
+    {"key":"ui.stats.fishFmt","value":"Balık: {0}"},
+    {"key":"ui.stats.earningsFmt","value":"Kazanç: ${0}"},
+    {"key":"ui.stats.playTimeFmt","value":"Oynama Süresi: {0}:{1:00}"},
+
+    {"key":"minigame.distanceFmt","value":"{0:0.0} m"},
+
+    {"key":"shop.category.general","value":"GENEL"},
+    {"key":"shop.fishPricesTitle","value":"BALIK FİYATLARI"},
+    {"key":"shop.weatherBonusActiveRichFmt","value":"<color=#90EE90>Hava Durumu Bonusu Aktif!</color>{0}"},
+
+    {"key":"shop.icon.LINE","value":"MİS"},
+    {"key":"shop.icon.SPD","value":"HIZ"},
+    {"key":"shop.icon.HOOK","value":"KAN"},
+    {"key":"shop.icon.STR","value":"GÜÇ"},
+    {"key":"shop.icon.BOAT","value":"TEK"},
+    {"key":"shop.icon.STAB","value":"DNG"},
+    {"key":"shop.icon.RADAR","value":"RAD"},
+    {"key":"shop.icon.STOR","value":"DEP"},
+    {"key":"shop.icon.LUCK","value":"ŞNS"},
+
+    {"key":"upgrade.CastDistance.name","value":"Misina Uzunluğu"},
+    {"key":"upgrade.CastDistance.desc","value":"Daha uzağa at"},
+    {"key":"upgrade.ReelSpeed.name","value":"Çekme Hızı"},
+    {"key":"upgrade.ReelSpeed.desc","value":"Balığı daha hızlı çek"},
+    {"key":"upgrade.BarSize.name","value":"Kanca Boyutu"},
+    {"key":"upgrade.BarSize.desc","value":"Daha kolay yakala"},
+    {"key":"upgrade.LineStrength.name","value":"Misina Dayanıklılığı"},
+    {"key":"upgrade.LineStrength.desc","value":"Misina kopma şansı azalır"},
+
+    {"key":"upgrade.BoatSpeed.name","value":"Tekne Hızı"},
+    {"key":"upgrade.BoatSpeed.desc","value":"Daha hızlı git"},
+    {"key":"upgrade.BoatStability.name","value":"Tekne Stabilitesi"},
+    {"key":"upgrade.BoatStability.desc","value":"Dalgalarda daha az salla"},
+    {"key":"upgrade.FishRadar.name","value":"Balık Radarı"},
+    {"key":"upgrade.FishRadar.desc","value":"Balıkları gör"},
+    {"key":"upgrade.StorageCapacity.name","value":"Depolama"},
+    {"key":"upgrade.StorageCapacity.desc","value":"Bonus para kazan"},
+
+    {"key":"upgrade.Luck.name","value":"Şanslı Yem"},
+    {"key":"upgrade.Luck.desc","value":"Nadir balık şansı artar"}
+  ]
+}

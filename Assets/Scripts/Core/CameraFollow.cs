@@ -157,8 +157,18 @@ public class CameraFollow : MonoBehaviour
 
     public void TriggerShake(float duration, float magnitude)
     {
+        float intensity = 1f;
+        if (SettingsManager.instance != null)
+            intensity = SettingsManager.instance.ShakeIntensity;
+
         shakeDuration = duration;
-        shakeMagnitude = magnitude;
+        shakeMagnitude = magnitude * Mathf.Clamp01(intensity);
+
+        if (shakeDuration <= 0f || shakeMagnitude <= 0f)
+        {
+            shakeDuration = 0f;
+            shakeMagnitude = 0f;
+        }
     }
 
     void OnDrawGizmos()

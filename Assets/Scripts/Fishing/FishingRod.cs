@@ -179,12 +179,16 @@ public class FishingRod : MonoBehaviour
         if (transform.right.x < 0)
              dir.x *= -1;
 
-        // Upgrade sisteminden güç al
+        // Upgrade sisteminden mesafe/force bonusu al
         float finalForce = castForce;
         if (UpgradeManager.instance != null)
         {
-            finalForce = UpgradeManager.instance.GetValue(UpgradeType.CastDistance);
+            float bonus = Mathf.Max(0f, UpgradeManager.instance.GetValue(UpgradeType.CastDistance));
+            finalForce = castForce + bonus;
         }
+
+        // Başlangıçta çok uzağa gitmesin; üst sınır da olsun.
+        finalForce = Mathf.Clamp(finalForce, 2.5f, 12f);
 
         hookRb.AddForce(dir * finalForce, ForceMode2D.Impulse);
 
@@ -208,10 +212,17 @@ public class FishingRod : MonoBehaviour
             return;
         }
 
+        int payout = fish.scoreValue;
+        if (UpgradeManager.instance != null)
+        {
+            float bonusPercent = Mathf.Max(0f, UpgradeManager.instance.GetValue(UpgradeType.StorageCapacity));
+            payout = Mathf.RoundToInt(payout * (1f + (bonusPercent / 100f)));
+        }
+
         // Lifetime istatistiklerini güncelle (yakalanan balık sayısı ve toplam kazanç)
         if (UIManager.instance != null)
         {
-            UIManager.instance.OnFishCaught(fish.scoreValue);
+            UIManager.instance.OnFishCaught(payout);
         }
 
         if (SoundManager.instance != null)
@@ -219,10 +230,20 @@ public class FishingRod : MonoBehaviour
 
         if (GameManager.instance != null)
         {
-            GameManager.instance.AddMoney(fish.scoreValue); // Score -> Money
+            GameManager.instance.AddMoney(payout); // Score -> Money (+ storage bonus)
             
-            string fishName = !string.IsNullOrEmpty(fish.fishName) ? fish.fishName : "Balık";
-            GameManager.instance.ShowFeedback($"{fishName} yakaladın!\n+${fish.scoreValue}");
+            string fishName = !string.IsNullOrEmpty(fish.fishName) ? fish.fishName : LocalizationManager.T("fish.defaultName", "Balık");
+            bool showRarity = SettingsManager.instance == null || SettingsManager.instance.ShowRarityOnCatch;
+            string rarity = (showRarity && !string.IsNullOrEmpty(fish.rarityLabel)) ? $" ({fish.rarityLabel})" : "";
+
+            string msg = LocalizationManager.Format(
+                "feedback.caughtFmt",
+                "{0}{1} yakaladın!\n+${2}",
+                fishName,
+                rarity,
+                payout
+            );
+            GameManager.instance.ShowFeedback(msg);
         }
 
         if (fish != null) fish.Despawn();
@@ -238,7 +259,7 @@ public class FishingRod : MonoBehaviour
     {
         if (GameManager.instance != null)
         {
-            GameManager.instance.ShowFeedback("FISH ESCAPED!", Color.red);
+            GameManager.instance.ShowFeedback(LocalizationManager.T("feedback.escaped", "Balık kaçtı!"), Color.red);
         }
 
         if (SoundManager.instance != null)

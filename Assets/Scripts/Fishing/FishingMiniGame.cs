@@ -41,6 +41,7 @@ public class FishingMiniGame : MonoBehaviour
     
     private float initialDistance = 10f;
     private float actualCatchSpeed;
+    private float actualDrainSpeed;
     private float lastDistanceDisplayed = -1f; // UI optimizasyonu için
 
     private bool lastIsInside = false;
@@ -130,6 +131,12 @@ public class FishingMiniGame : MonoBehaviour
         
         actualCatchSpeed = baseReelSpeed * factor;
 
+        // Line Strength: outside penalty gets reduced (harder to "lose the fish")
+        float strengthPct = 0f;
+        if (UpgradeManager.instance != null)
+            strengthPct = Mathf.Clamp(UpgradeManager.instance.GetValue(UpgradeType.LineStrength), 0f, 75f);
+        actualDrainSpeed = drainSpeed * (1f - (strengthPct / 100f));
+
         // Zorluğa göre yeşil alan boyutunu ayarla
         float baseSize = 150f;
         if (UpgradeManager.instance != null)
@@ -142,7 +149,11 @@ public class FishingMiniGame : MonoBehaviour
         catchAreaSize = newSize;
 
         gamePanel.SetActive(true);
-        if (statusText != null) statusText.text = "HOOKED!";
+        if (statusText != null)
+        {
+            statusText.text = LocalizationManager.T("minigame.hooked", "HOOKED!");
+            statusText.color = Color.white;
+        }
 
         if (BoatController.instance != null) BoatController.instance.canMove = false;
     }
@@ -239,16 +250,17 @@ public class FishingMiniGame : MonoBehaviour
             currentProgress += actualCatchSpeed * Time.deltaTime;
             if (statusText != null && (!hasInsideState || lastIsInside != isInside))
             {
-                statusText.text = "REELING!";
+                statusText.text = LocalizationManager.T("minigame.reeling", "REELING!");
                 statusText.color = Color.green;
             }
         }
         else
         {
-            currentProgress -= drainSpeed * Time.deltaTime;
+            float drain = (actualDrainSpeed > 0f) ? actualDrainSpeed : drainSpeed;
+            currentProgress -= drain * Time.deltaTime;
             if (statusText != null && (!hasInsideState || lastIsInside != isInside))
             {
-                statusText.text = "ESCAPING!";
+                statusText.text = LocalizationManager.T("minigame.escaping", "ESCAPING!");
                 statusText.color = Color.red;
             }
 
@@ -299,7 +311,7 @@ public class FishingMiniGame : MonoBehaviour
             // String oluşturma maliyetini düşürmek için sadece değer değiştiğinde güncelle
             if (Mathf.Abs(distance - lastDistanceDisplayed) > 0.1f)
             {
-                distanceText.SetText("{0:0.0} m", distance);
+                distanceText.SetText(LocalizationManager.T("minigame.distanceFmt", "{0:0.0} m"), distance);
                 lastDistanceDisplayed = distance;
             }
             

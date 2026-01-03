@@ -50,7 +50,7 @@ public class BoatController : MonoBehaviour
         ApplyUpgrades();
     }
     
-    void ApplyUpgrades()
+    public void ApplyUpgrades()
     {
         if (UpgradeManager.instance != null)
         {
