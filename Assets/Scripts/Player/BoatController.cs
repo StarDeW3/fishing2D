@@ -14,14 +14,18 @@ public class BoatController : MonoBehaviour
 
     [Header("Hareket Ayarları")]
     public float moveSpeed = 5f;
-    public bool canMove = true; // Olta atıldığında bunu false yapacağız
+    public float baseSpeed = 5f; // Temel hız (upgrade için)
+    public bool canMove = true;
 
     [Header("Yüzme Fiziği")]
-    public float surfaceOffset = 0.5f; // Teknenin suyun içinde ne kadar batacağını ayarlar (Yüksek değer = Daha derin)
-    public float floatStrength = 2f; // Suyun kaldırma kuvveti (Daha düşük = daha az zıplama)
-    public float rotationSpeed = 2f; // Dalga eğimine göre dönme hızı
-    public float depthBeforeSubmerged = 1f; // Ne kadar batarsa tam kaldırma kuvveti uygulanır
-    public float displacementAmount = 1.5f;   // Batan hacim çarpanı (Daha düşük = daha stabil)
+    public float surfaceOffset = 0.5f;
+    public float floatStrength = 2f;
+    public float rotationSpeed = 2f;
+    public float depthBeforeSubmerged = 1f;
+    public float displacementAmount = 1.5f;
+    
+    [Header("Stabilite (Upgrade ile değişir)")]
+    public float stabilityMultiplier = 1f; // Düşük = daha stabil
 
     private Rigidbody2D rb;
     private bool waveManagerMissingLogged = false;
@@ -32,6 +36,23 @@ public class BoatController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         waveManager = WaveManager.instance;
+        baseSpeed = moveSpeed;
+        
+        // Upgrade'den hızı al
+        ApplyUpgrades();
+    }
+    
+    void ApplyUpgrades()
+    {
+        if (UpgradeManager.instance != null)
+        {
+            // Tekne hızı
+            float speedValue = UpgradeManager.instance.GetValue(UpgradeType.BoatSpeed);
+            if (speedValue > 0) moveSpeed = speedValue;
+            
+            // Tekne stabilitesi (1.0 = normal, 1.75 = çok stabil)
+            stabilityMultiplier = UpgradeManager.instance.GetValue(UpgradeType.BoatStability);
+        }
     }
 
     void Update()
@@ -69,7 +90,7 @@ public class BoatController : MonoBehaviour
             {
                 if (!waveManagerMissingLogged)
                 {
-                    Debug.LogError("WaveManager sahnede bulunamadı! Lütfen 'Water' objesine WaveManager scriptini eklediğinden emin ol.");
+                    Debug.LogError("WaveManager sahnede bulunamadi! Lutfen 'Water' objesine WaveManager scriptini eklediginden emin ol.");
                     waveManagerMissingLogged = true;
                 }
                 return;
@@ -114,11 +135,20 @@ public class BoatController : MonoBehaviour
         // Analitik türev kullanarak eğimi hesapla (Daha hassas ve performanslı)
         float slope = waveManager.GetWaveSlope(transform.position.x);
         float targetAngle = Mathf.Atan2(slope, 1f) * Mathf.Rad2Deg;
+        
+        // Stabilite upgrade'i - daha stabil = daha az sallanma
+        float actualRotationSpeed = rotationSpeed / stabilityMultiplier;
+        targetAngle = targetAngle / stabilityMultiplier; // Sallanma açısını azalt
 
         // Yumuşak dönüş
         float currentAngle = transform.rotation.eulerAngles.z;
-        float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, Time.fixedDeltaTime * rotationSpeed);
+        float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, Time.fixedDeltaTime * actualRotationSpeed);
         rb.MoveRotation(newAngle);
+    }
+    
+    void ApplyWeatherEffects()
+    {
+        // Hava durumu kaldırıldı
     }
 
     void OnDrawGizmos()

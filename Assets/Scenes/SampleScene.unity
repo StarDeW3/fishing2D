@@ -459,12 +459,12 @@ MonoBehaviour:
     m_NumColorKeys: 2
     m_NumAlphaKeys: 2
   controlWaterColor: 1
-  waterDayTop: {r: 0, g: 0.6, b: 0.9, a: 0.8}
-  waterNightTop: {r: 0, g: 0.1, b: 0.3, a: 0.8}
-  waterDayBottom: {r: 0, g: 0.1, b: 0.3, a: 1}
-  waterNightBottom: {r: 0, g: 0.05, b: 0.1, a: 1}
+  waterDayTop: {r: 0, g: 0.6, b: 0.9, a: 0.67058825}
+  waterNightTop: {r: 0, g: 0.1, b: 0.3, a: 0.74509805}
+  waterDayBottom: {r: 0, g: 0.1, b: 0.3, a: 0.7372549}
+  waterNightBottom: {r: 0, g: 0.05, b: 0.1, a: 0.8862745}
   referenceCameraSize: 5
-  waterSurfaceY: 0
+  waterSurfaceY: -0.47
 --- !u!4 &277034719
 Transform:
   m_ObjectHideFlags: 0
@@ -559,13 +559,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce6db2f85a5d0fc4e9bbe38076abb968, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BoatController
-  moveSpeed: 5
+  moveSpeed: 10
+  baseSpeed: 10
   canMove: 1
   surfaceOffset: 2
   floatStrength: 2
   rotationSpeed: 2
   depthBeforeSubmerged: 1
   displacementAmount: 1.5
+  stabilityMultiplier: 1
 --- !u!114 &503533732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -725,19 +727,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bd6ad58276127445ae7c2d2db4c95e4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WaveManager
-  amplitude: 0.5
+  amplitude: 0.22
   length: 2
   speed: 1
   offset: 0
   useDetailWaves: 1
-  detailAmplitude: 0.1
+  detailAmplitude: 0.23
   detailLength: 1
   detailSpeed: 2
+  weatherIntensity: 1
   meshResolution: 100
   meshWidth: 100
-  bottomDepth: 150
-  topColor: {r: 0, g: 0.6, b: 0.9, a: 0.8}
-  bottomColor: {r: 0, g: 0.1, b: 0.3, a: 1}
+  bottomDepth: 250
+  topColor: {r: 0, g: 0.6, b: 0.9, a: 0.16470589}
+  bottomColor: {r: 0, g: 0.1, b: 0.3, a: 0.2901961}
 --- !u!4 &517561887
 Transform:
   m_ObjectHideFlags: 0
@@ -822,6 +825,7 @@ GameObject:
   - component: {fileID: 519420029}
   - component: {fileID: 519420030}
   - component: {fileID: 519420033}
+  - component: {fileID: 519420034}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -967,11 +971,36 @@ MonoBehaviour:
   maxZoom: 15
   zoomPadding: 5
   zoomSmoothTime: 0.2
+  secondaryTargetOffset: 5
   lockY: 0
   fixedY: 0
   enableLimits: 1
   minPosition: {x: -50, y: -200}
   maxPosition: {x: 50, y: 7}
+--- !u!114 &519420034
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 519420028}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a3b3d98333f57042a9a8d8ad30a8a14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SoundManager
+  musicSource: {fileID: 0}
+  sfxSource: {fileID: 0}
+  backgroundMusic: {fileID: 8300000, guid: 431d1cd860744b649a6688ee46bdeb16, type: 3}
+  castSound: {fileID: 0}
+  splashSound: {fileID: 0}
+  reelSound: {fileID: 0}
+  catchSound: {fileID: 0}
+  escapeSound: {fileID: 0}
+  boatEngineSound: {fileID: 0}
+  musicVolume: 1
+  sfxVolume: 1
+  isMuted: 0
 --- !u!1 &541968637
 GameObject:
   m_ObjectHideFlags: 0
@@ -1193,7 +1222,19 @@ MonoBehaviour:
   fishPrefab: {fileID: 0}
   spawnInterval: 3
   maxFishCount: 15
-  fishTypes: []
+  fishTypes:
+  - name: minik
+    sprite: {fileID: -1842537561509974407, guid: c0fee99e3b780044aaadbcd9bffe5c1d, type: 3}
+    speed: 3
+    difficulty: 1.35
+    score: 50
+    spawnWeight: 71
+  - name: "b\xFCy\xFCk"
+    sprite: {fileID: -1842537561509974407, guid: c0fee99e3b780044aaadbcd9bffe5c1d, type: 3}
+    speed: 1.8
+    difficulty: 2.07
+    score: 80
+    spawnWeight: 29
   minX: -10
   maxX: 10
   minY: -67.98
@@ -1318,15 +1359,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 87d279182d6f2a246b1f2edb0ab99f66, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
-  scoreText: {fileID: 0}
+  moneyText: {fileID: 0}
   timeText: {fileID: 0}
   gameOverPanel: {fileID: 0}
   finalScoreText: {fileID: 0}
   feedbackText: {fileID: 0}
-  currentScore: 0
-  highScore: 0
+  pausePanel: {fileID: 0}
+  shopPanel: {fileID: 0}
+  mainMenuPanel: {fileID: 0}
+  settingsPanel: {fileID: 0}
+  gameFonts:
+  - {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  currentFontIndex: 0
+  money: 0
   isGameActive: 1
   isPaused: 0
+  isFirstStart: 1
 --- !u!4 &1289197750
 Transform:
   m_ObjectHideFlags: 0

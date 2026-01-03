@@ -155,8 +155,11 @@ public class FishingMiniGame : MonoBehaviour
             fishMoveTimer = Random.Range(1f, 2.5f);
         }
 
+        // Hava durumu etkisi (Fırtınada balık daha çok kaçar)
+        float weatherMultiplier = 1f;
+
         // Balık hareketi
-        float speed = Time.deltaTime * (0.2f + (currentDifficulty * 0.1f));
+        float speed = Time.deltaTime * (0.2f + (currentDifficulty * 0.1f)) * weatherMultiplier;
         fishPosition = Mathf.MoveTowards(fishPosition, fishTarget, speed);
 
         // Kenarlarda çok durmasın
@@ -231,10 +234,21 @@ public class FishingMiniGame : MonoBehaviour
 
     void UpdateUI()
     {
-        float fishY = (fishPosition - 0.5f) * barSize;
+        // Track boyutunu hesapla (barSize değil, gerçek track boyutu)
+        float trackHeight = barSize - 20; // Track'in offset'lerini hesaba kat
+        float halfTrack = trackHeight / 2f;
+        
+        // Fish icon pozisyonu - sınırlar içinde
+        float fishY = (fishPosition - 0.5f) * trackHeight;
         fishIcon.anchoredPosition = new Vector2(0, fishY);
 
-        float catchY = (catchPosition - 0.5f) * barSize;
+        // Catch area pozisyonu - yeşil çubuğun taşmasını önle
+        float halfCatchArea = catchAreaSize / 2f;
+        float maxCatchY = halfTrack - halfCatchArea;
+        float minCatchY = -halfTrack + halfCatchArea;
+        
+        float catchY = (catchPosition - 0.5f) * trackHeight;
+        catchY = Mathf.Clamp(catchY, minCatchY, maxCatchY);
         catchArea.anchoredPosition = new Vector2(0, catchY);
 
         progressBar.fillAmount = currentProgress;
@@ -288,24 +302,32 @@ public class FishingMiniGame : MonoBehaviour
 
         if (canvasObj == null) 
         {
-            Debug.LogError("FishingMiniGame: Canvas bulunamadı! UI oluşturulamıyor.");
+            Debug.LogError("FishingMiniGame: Canvas bulunamadi! UI olusturulamiyor.");
             return;
         }
 
         Transform oldPanel = canvasObj.transform.Find("FishingMiniGamePanel");
         if (oldPanel != null) Destroy(oldPanel.gameObject);
 
-        // 1. Ana Panel
+        // 1. Ana Panel - Sağ kenara yakın, dikey çubuk
         gamePanel = new GameObject("FishingMiniGamePanel");
         gamePanel.transform.SetParent(canvasObj.transform, false);
 
         RectTransform panelRect = gamePanel.AddComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0.75f, 0.5f);
-        panelRect.anchorMax = new Vector2(0.75f, 0.5f);
-        panelRect.sizeDelta = new Vector2(100, barSize + 50); // Biraz daha geniş
+        // Sağ tarafta, ortadan biraz yukarıda
+        panelRect.anchorMin = new Vector2(1f, 0.5f);
+        panelRect.anchorMax = new Vector2(1f, 0.5f);
+        panelRect.pivot = new Vector2(1f, 0.5f);
+        panelRect.anchoredPosition = new Vector2(-30, 30);
+        panelRect.sizeDelta = new Vector2(80, barSize + 40);
 
         Image bg = gamePanel.AddComponent<Image>();
-        bg.color = new Color(0.15f, 0.15f, 0.2f, 1f);
+        bg.color = new Color(0.1f, 0.12f, 0.18f, 0.95f);
+        
+        // Glow efekti
+        Outline glow = gamePanel.AddComponent<Outline>();
+        glow.effectColor = new Color(0.3f, 0.6f, 1f, 0.4f);
+        glow.effectDistance = new Vector2(4, -4);
 
         // Border
         GameObject borderObj = new GameObject("Border");

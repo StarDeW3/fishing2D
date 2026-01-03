@@ -17,6 +17,11 @@ public class WaveManager : MonoBehaviour
     public float detailAmplitude = 0.2f;
     public float detailLength = 1f;
     public float detailSpeed = 2f;
+    
+    [Header("Hava Durumu Etkisi")]
+    public float weatherIntensity = 1f; // WeatherSystem tarafından güncellenir
+    private float baseAmplitude;
+    private float baseDetailAmplitude;
 
     [Header("Görsel Ayarlar (Su Altı)")]
     public int meshResolution = 100; // Vertex sayısı
@@ -50,6 +55,10 @@ public class WaveManager : MonoBehaviour
         meshRenderer = GetComponent<MeshRenderer>();
         mainCamera = Camera.main;
         
+        // Temel değerleri kaydet
+        baseAmplitude = amplitude;
+        baseDetailAmplitude = detailAmplitude;
+        
         mesh = new Mesh();
         mesh.name = "WaterMesh";
         mesh.MarkDynamic(); // Sık güncellemeler için optimize et
@@ -62,6 +71,13 @@ public class WaveManager : MonoBehaviour
         }
 
         InitializeMeshArrays();
+    }
+    
+    public void SetWeatherIntensity(float intensity)
+    {
+        weatherIntensity = intensity;
+        amplitude = baseAmplitude * weatherIntensity;
+        detailAmplitude = baseDetailAmplitude * weatherIntensity;
     }
 
     void InitializeMeshArrays()

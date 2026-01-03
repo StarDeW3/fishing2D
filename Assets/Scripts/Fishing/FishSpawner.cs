@@ -19,10 +19,10 @@ public class FishSpawner : MonoBehaviour
     public float spawnInterval = 3f;
     public int maxFishCount = 15; // Ekranda aynı anda olabilecek maksimum balık
     
-    [Header("Balık Türleri")]
+    [Header("Balik Turleri")]
     public List<FishType> fishTypes;
     
-    [Header("Spawn Alanı")]
+    [Header("Spawn Alani")]
     public float minX = -15f;
     public float maxX = 15f;
     public float minY = -10f; 
@@ -91,7 +91,7 @@ public class FishSpawner : MonoBehaviour
         fishTypes.Add(new FishType { name = "Big Fish", speed = 4f, difficulty = 4f, score = 50, spawnWeight = 15, sprite = defaultSprite });
         fishTypes.Add(new FishType { name = "Legendary Fish", speed = 6f, difficulty = 5f, score = 100, spawnWeight = 5, sprite = defaultSprite });
         
-        Debug.Log("Varsayılan balık türleri eklendi.");
+        Debug.Log("Varsayilan balik turleri eklendi.");
     }
 
     void Update()
@@ -99,8 +99,11 @@ public class FishSpawner : MonoBehaviour
         // Container altındaki balık sayısını kontrol et
         // Optimization: Use cached count instead of childCount
         if (currentFishCount >= maxFishCount) return;
+        
+        // Hava durumu etkisi - balık aktivitesi
+        float activityMultiplier = 1f;
 
-        timer += Time.deltaTime;
+        timer += Time.deltaTime * activityMultiplier;
         if (timer >= spawnInterval)
         {
             SpawnFish();
@@ -187,6 +190,11 @@ public class FishSpawner : MonoBehaviour
         {
             luckBonus = UpgradeManager.instance.GetValue(UpgradeType.Luck);
         }
+        
+        // Hava durumu bonusu
+        float weatherBonus = 0f;
+        
+        float totalBonus = luckBonus + weatherBonus;
 
         // Şans faktörünü nasıl uygularız?
         // Basitçe: Zor balıkların (düşük spawnWeight) ağırlığını artırabiliriz.
@@ -202,7 +210,7 @@ public class FishSpawner : MonoBehaviour
             // Eğer zorluk yüksekse (nadir balık), şans bonusu ekle
             if (type.difficulty > 2.5f)
             {
-                w += Mathf.RoundToInt(luckBonus);
+                w += Mathf.RoundToInt(totalBonus);
             }
             weights.Add(w);
             currentTotalWeight += w;
