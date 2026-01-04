@@ -15,7 +15,7 @@ public class Hook : MonoBehaviour
     public Fish caughtFish; // Yakalanan balık
     public FishingRod fishingRod; // Referans (FishingRod tarafından atanır)
     private bool isBusy = false; // Minigame sırasında meşgul mü?
-    
+
     // Görsel efekt için
     private Vector3 catchPosition;
     private Transform targetRodTip;
@@ -29,6 +29,8 @@ public class Hook : MonoBehaviour
     private static FishingRod cachedRod;
     private float nextWaveManagerSearchTime = 0f;
 
+    private float initialAnchorX;
+
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -36,13 +38,15 @@ public class Hook : MonoBehaviour
         triggerCollider = GetComponent<CircleCollider2D>();
         if (triggerCollider != null)
             baseTriggerRadius = triggerCollider.radius;
-        
+
         // Çarpışma algılama modunu iyileştir (Hızlı hareketlerde içinden geçmeyi önler)
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
         // Collider'ı Trigger yap (Fiziksel çarpışma yerine olay tetiklesin)
         Collider2D col = GetComponent<Collider2D>();
         if (col != null) col.isTrigger = true;
+
+        initialAnchorX = transform.position.x;
     }
 
     void Start()
@@ -98,7 +102,7 @@ public class Hook : MonoBehaviour
             float targetProgress = FishingMiniGame.instance.CurrentProgress;
             // Yumuşak geçiş
             visualProgress = Mathf.Lerp(visualProgress, targetProgress, Time.deltaTime * 5f);
-            
+
             // Pozisyonu güncelle (Başlangıç noktası ile olta ucu arasında)
             transform.position = Vector3.Lerp(catchPosition, targetRodTip.position, visualProgress);
         }
@@ -120,7 +124,7 @@ public class Hook : MonoBehaviour
         {
             float waveHeight = waveManager.GetWaveHeight(transform.position.x);
             bool isUnderwater = transform.position.y < waveHeight;
-            
+
             // Su altındaysa
             if (isUnderwater)
             {
@@ -129,7 +133,7 @@ public class Hook : MonoBehaviour
                     rb.linearDamping = 2f; // Su direnci
                     rb.gravityScale = 0.1f; // Yavaş batma (Kontrolü kolaylaştırmak için düşürdüm)
                 }
-                
+
                 // Su altı hareketi
                 if (inputDir != Vector2.zero)
                 {
@@ -154,13 +158,38 @@ public class Hook : MonoBehaviour
 
             lastWasUnderwater = isUnderwater;
         }
+
+        ApplyHorizontalLimit();
+    }
+
+    private void ApplyHorizontalLimit()
+    {
+        if (rb == null) return;
+        if (fishingRod == null) return;
+        if (!fishingRod.limitHookHorizontal) return;
+
+        float max = Mathf.Max(0f, fishingRod.hookMaxHorizontalOffset);
+        if (max <= 0f) return;
+
+        float anchorX = (fishingRod.rodTip != null) ? fishingRod.rodTip.position.x : initialAnchorX;
+        float minX = anchorX - max;
+        float maxX = anchorX + max;
+
+        Vector2 p = rb.position;
+        float clampedX = Mathf.Clamp(p.x, minX, maxX);
+        if (Mathf.Abs(clampedX - p.x) > 0.0001f)
+        {
+            rb.position = new Vector2(clampedX, p.y);
+            Vector2 v = rb.linearVelocity;
+            rb.linearVelocity = new Vector2(0f, v.y);
+        }
     }
 
     void OnTriggerEnter2D(Collider2D other)
     {
         // Erken çıkış kontrolleri
         if (caughtFish != null || isBusy) return;
-        
+
         // Global kontrol (Başka bir yerde minigame oynanıyor mu?)
         if (FishingMiniGame.instance != null && FishingMiniGame.instance.IsPlaying) return;
 
@@ -178,15 +207,15 @@ public class Hook : MonoBehaviour
         // Görsel efekt başlangıç değerleri
         catchPosition = transform.position;
         visualProgress = 0f;
-        
+
         // FishingRod referansını kontrol et
-        if (fishingRod == null) 
+        if (fishingRod == null)
         {
             if (cachedRod == null)
                 cachedRod = FindFirstObjectByType<FishingRod>();
             fishingRod = cachedRod;
         }
-        
+
         if (fishingRod == null)
         {
             Debug.LogError("FishingRod bulunamadı!");
@@ -196,7 +225,7 @@ public class Hook : MonoBehaviour
             OnMiniGameWin(fish); // Direkt kazan
             return;
         }
-        
+
         targetRodTip = fishingRod.rodTip;
         float distance = Vector3.Distance(transform.position, targetRodTip.position);
 
@@ -209,8 +238,12 @@ public class Hook : MonoBehaviour
 
         if (FishingMiniGame.instance != null)
         {
-            FishingMiniGame.instance.StartGame(fish.difficulty, distance, 
-                () => OnMiniGameWin(fish), 
+            Sprite fishSprite = null;
+            SpriteRenderer sr = fish.GetComponent<SpriteRenderer>();
+            if (sr != null) fishSprite = sr.sprite;
+
+            FishingMiniGame.instance.StartGame(fish.difficulty, distance, fishSprite,
+                () => OnMiniGameWin(fish),
                 () => OnMiniGameLose(fish)
             );
         }
@@ -227,7 +260,7 @@ public class Hook : MonoBehaviour
         isBusy = false;
         caughtFish = fish;
         Debug.Log("Balık Yakalandı!");
-        
+
         if (fishingRod != null)
         {
             fishingRod.ReelInSuccess(fish);
@@ -243,12 +276,12 @@ public class Hook : MonoBehaviour
     {
         isBusy = false;
         Debug.Log("Balık Kaçtı!");
-        
+
         if (fish != null) fish.Escape();
-        
+
         // Kancayı tekrar fiziksel yap
         if (rb != null) rb.bodyType = RigidbodyType2D.Dynamic;
-        
+
         // Başarısız olunca otomatik çek
         if (fishingRod != null) fishingRod.ReelInFail();
     }
@@ -262,5 +295,22 @@ public class Hook : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, 0.2f);
+
+        if (fishingRod != null && fishingRod.limitHookHorizontal)
+        {
+            float max = Mathf.Max(0f, fishingRod.hookMaxHorizontalOffset);
+            if (max > 0f)
+            {
+                float anchorX = (fishingRod.rodTip != null) ? fishingRod.rodTip.position.x : initialAnchorX;
+                Gizmos.color = new Color(0.2f, 1f, 1f, 0.9f);
+
+                Vector3 a = new Vector3(anchorX, transform.position.y, 0f);
+                Vector3 left = new Vector3(anchorX - max, transform.position.y, 0f);
+                Vector3 right = new Vector3(anchorX + max, transform.position.y, 0f);
+
+                Gizmos.DrawLine(left, right);
+                Gizmos.DrawLine(a, transform.position);
+            }
+        }
     }
 }

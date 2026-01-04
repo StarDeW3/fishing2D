@@ -5,7 +5,7 @@ using TMPro;
 public class LocalizedTMPText : MonoBehaviour
 {
     [SerializeField] private string key;
-    [TextArea] [SerializeField] private string fallback;
+    [TextArea][SerializeField] private string fallback;
 
     private TMP_Text tmp;
 

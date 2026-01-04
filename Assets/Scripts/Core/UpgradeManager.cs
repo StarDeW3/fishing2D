@@ -8,13 +8,13 @@ public enum UpgradeType
     ReelSpeed,      // Balığı çekme hızı (Minigame dolma hızı)
     BarSize,        // Yeşil alan boyutu (Minigame kolaylığı)
     LineStrength,   // Misina dayanıklılığı (Kopma şansı azalır)
-    
+
     // Tekne Geliştirmeleri
     BoatSpeed,      // Tekne hareket hızı
     BoatStability,  // Tekne stabilitesi (Dalgalarda sallanma azalır)
     FishRadar,      // Balık radarı (Balıkları görebilirsin)
     StorageCapacity,// Depolama kapasitesi (Bonus para)
-    
+
     // Genel
     Luck            // Nadir balık şansı
 }
@@ -47,7 +47,7 @@ public class UpgradeManager : MonoBehaviour
     public static UpgradeManager instance;
 
     public List<UpgradeDef> upgrades;
-    
+
     // Mevcut seviyeleri tutar
     private Dictionary<UpgradeType, int> currentLevels = new Dictionary<UpgradeType, int>();
 
@@ -72,117 +72,117 @@ public class UpgradeManager : MonoBehaviour
             upgrades = new List<UpgradeDef>
             {
                 // ===== MİSİNA GELİŞTİRMELERİ =====
-                new UpgradeDef { 
-                    name = "Line Length", 
+                new UpgradeDef {
+                    name = "Line Length",
                     turkishName = "Misina Uzunlugu",
                     description = "Cast farther",
                     icon = "LINE",
-                    type = UpgradeType.CastDistance, 
+                    type = UpgradeType.CastDistance,
                     category = UpgradeCategory.Line,
-                    baseCost = 50, 
-                    baseValue = 0f, 
-                    valuePerLevel = 0.4f, 
-                    maxLevel = 10 
+                    baseCost = 50,
+                    baseValue = 0f,
+                    valuePerLevel = 0.4f,
+                    maxLevel = 10
                 },
-                new UpgradeDef { 
-                    name = "Reel Speed", 
+                new UpgradeDef {
+                    name = "Reel Speed",
                     turkishName = "Cekme Hizi",
                     description = "Reel fish faster",
                     icon = "SPD",
-                    type = UpgradeType.ReelSpeed, 
+                    type = UpgradeType.ReelSpeed,
                     category = UpgradeCategory.Line,
-                    baseCost = 75, 
-                    baseValue = 0.4f, 
-                    valuePerLevel = 0.05f, 
-                    maxLevel = 8 
+                    baseCost = 75,
+                    baseValue = 0.4f,
+                    valuePerLevel = 0.05f,
+                    maxLevel = 8
                 },
-                new UpgradeDef { 
-                    name = "Hook Size", 
+                new UpgradeDef {
+                    name = "Hook Size",
                     turkishName = "Kanca Boyutu",
                     description = "Catch more easily",
                     icon = "HOOK",
-                    type = UpgradeType.BarSize, 
+                    type = UpgradeType.BarSize,
                     category = UpgradeCategory.Line,
-                    baseCost = 100, 
-                    baseValue = 150f, 
-                    valuePerLevel = 15f, 
-                    maxLevel = 5 
+                    baseCost = 100,
+                    baseValue = 150f,
+                    valuePerLevel = 15f,
+                    maxLevel = 5
                 },
-                new UpgradeDef { 
-                    name = "Line Strength", 
+                new UpgradeDef {
+                    name = "Line Strength",
                     turkishName = "Misina Dayanikliligi",
                     description = "Reduce line break chance",
                     icon = "STR",
-                    type = UpgradeType.LineStrength, 
+                    type = UpgradeType.LineStrength,
                     category = UpgradeCategory.Line,
-                    baseCost = 150, 
-                    baseValue = 0f, 
+                    baseCost = 150,
+                    baseValue = 0f,
                     valuePerLevel = 10f, // % azalma
-                    maxLevel = 5 
+                    maxLevel = 5
                 },
                 
                 // ===== TEKNE GELİŞTİRMELERİ =====
-                new UpgradeDef { 
-                    name = "Boat Speed", 
+                new UpgradeDef {
+                    name = "Boat Speed",
                     turkishName = "Tekne Hizi",
                     description = "Move faster",
                     icon = "BOAT",
-                    type = UpgradeType.BoatSpeed, 
+                    type = UpgradeType.BoatSpeed,
                     category = UpgradeCategory.Boat,
-                    baseCost = 100, 
-                    baseValue = 5f, 
-                    valuePerLevel = 1f, 
-                    maxLevel = 8 
+                    baseCost = 100,
+                    baseValue = 5f,
+                    valuePerLevel = 1f,
+                    maxLevel = 8
                 },
-                new UpgradeDef { 
-                    name = "Boat Stability", 
+                new UpgradeDef {
+                    name = "Boat Stability",
                     turkishName = "Tekne Stabilitesi",
                     description = "Reduce wave wobble",
                     icon = "STAB",
-                    type = UpgradeType.BoatStability, 
+                    type = UpgradeType.BoatStability,
                     category = UpgradeCategory.Boat,
-                    baseCost = 200, 
-                    baseValue = 1f, 
-                    valuePerLevel = 0.15f, 
-                    maxLevel = 5 
+                    baseCost = 200,
+                    baseValue = 1f,
+                    valuePerLevel = 0.15f,
+                    maxLevel = 5
                 },
-                new UpgradeDef { 
-                    name = "Fish Radar", 
+                new UpgradeDef {
+                    name = "Fish Radar",
                     turkishName = "Balik Radari",
                     description = "See fish",
                     icon = "RADAR",
-                    type = UpgradeType.FishRadar, 
+                    type = UpgradeType.FishRadar,
                     category = UpgradeCategory.Boat,
-                    baseCost = 500, 
-                    baseValue = 0f, 
+                    baseCost = 500,
+                    baseValue = 0f,
                     valuePerLevel = 0.25f, // Hook detection radius bonus
-                    maxLevel = 3 
+                    maxLevel = 3
                 },
-                new UpgradeDef { 
-                    name = "Storage", 
+                new UpgradeDef {
+                    name = "Storage",
                     turkishName = "Depolama",
                     description = "Earn bonus money",
                     icon = "STOR",
-                    type = UpgradeType.StorageCapacity, 
+                    type = UpgradeType.StorageCapacity,
                     category = UpgradeCategory.Boat,
-                    baseCost = 300, 
-                    baseValue = 0f, 
+                    baseCost = 300,
+                    baseValue = 0f,
                     valuePerLevel = 5f, // % bonus
-                    maxLevel = 5 
+                    maxLevel = 5
                 },
                 
                 // ===== GENEL GELİŞTİRMELER =====
-                new UpgradeDef { 
-                    name = "Lucky Bait", 
+                new UpgradeDef {
+                    name = "Lucky Bait",
                     turkishName = "Sansli Yem",
                     description = "Increase rare fish chance",
                     icon = "LUCK",
-                    type = UpgradeType.Luck, 
+                    type = UpgradeType.Luck,
                     category = UpgradeCategory.General,
-                    baseCost = 200, 
-                    baseValue = 0f, 
+                    baseCost = 200,
+                    baseValue = 0f,
                     valuePerLevel = 5f, // % şans artışı
-                    maxLevel = 5 
+                    maxLevel = 5
                 }
             };
         }
@@ -235,7 +235,7 @@ public class UpgradeManager : MonoBehaviour
             currentLevels[type] = currentLvl + 1;
             PlayerPrefs.SetInt("Upgrade_" + type.ToString(), currentLevels[type]);
             PlayerPrefs.Save();
-            
+
             Debug.Log($"{type} upgraded to level {currentLevels[type]}");
 
             // Apply any runtime effects immediately.
@@ -243,18 +243,18 @@ public class UpgradeManager : MonoBehaviour
             {
                 BoatController.instance.ApplyUpgrades();
             }
-            
+
             return true;
         }
-        
+
         return false;
     }
-    
+
     public List<UpgradeDef> GetUpgradesByCategory(UpgradeCategory category)
     {
         return upgrades.FindAll(u => u.category == category);
     }
-    
+
     public UpgradeDef GetUpgradeDef(UpgradeType type)
     {
         return upgrades.Find(u => u.type == type);

@@ -15,11 +15,13 @@ public class FishingMiniGame : MonoBehaviour
     public TextMeshProUGUI statusText; // Yeni durum metni
     public TextMeshProUGUI distanceText; // Mesafe metni
 
+    private Image fishIconImage;
+
     [Header("Oyun Ayarları")]
     public float barSize = 400f;
     public float catchAreaSize = 150f;
-    public float catchSpeed = 0.4f; // Biraz dengelendi
-    public float drainSpeed = 0.15f; // Biraz daha cezalandırıcı ama adil
+    public float catchSpeed = 0.30f;
+    public float drainSpeed = 0.24f;
 
     private bool isPlaying = false;
     public bool IsPlaying => isPlaying; // Dışarıdan erişim için property
@@ -38,7 +40,7 @@ public class FishingMiniGame : MonoBehaviour
     // Efektler için
     private Vector3 originalPanelPos;
     private float shakeTimer = 0f;
-    
+
     private float initialDistance = 10f;
     private float actualCatchSpeed;
     private float actualDrainSpeed;
@@ -69,7 +71,7 @@ public class FishingMiniGame : MonoBehaviour
         {
             CreateUI();
         }
-        
+
         if (gamePanel != null)
             originalPanelPos = gamePanel.transform.localPosition;
     }
@@ -87,6 +89,11 @@ public class FishingMiniGame : MonoBehaviour
 
     public void StartGame(float difficulty, float distance, System.Action winCallback, System.Action loseCallback)
     {
+        StartGame(difficulty, distance, null, winCallback, loseCallback);
+    }
+
+    public void StartGame(float difficulty, float distance, Sprite fishSprite, System.Action winCallback, System.Action loseCallback)
+    {
         if (isPlaying) return; // Zaten oyun varsa yenisini başlatma
 
         // UI referansları yoksa oluşturmayı dene; yine de yoksa crash yerine güvenli şekilde iptal et.
@@ -103,6 +110,8 @@ public class FishingMiniGame : MonoBehaviour
             return;
         }
 
+        ApplyFishIconSilhouette(fishSprite);
+
         currentDifficulty = difficulty;
         initialDistance = distance;
         lastDistanceDisplayed = -1f; // Reset
@@ -110,7 +119,7 @@ public class FishingMiniGame : MonoBehaviour
         onLose = loseCallback;
 
         isPlaying = true;
-        currentProgress = 0.25f; // %25'ten başla
+        currentProgress = 0.15f;
         fishPosition = 0.5f;
         catchPosition = 0.5f;
         catchVelocity = 0f;
@@ -118,24 +127,30 @@ public class FishingMiniGame : MonoBehaviour
         hasInsideState = false;
 
         // Mesafeye göre hızı ayarla (Uzaksa daha yavaş dolsun)
-        float referenceDist = 8f; 
+        float referenceDist = 8f;
         float factor = referenceDist / Mathf.Max(distance, 1f);
         factor = Mathf.Clamp(factor, 0.5f, 1.5f); // Çok aşırı yavaşlamasın (0.2 -> 0.5)
-        
+
         // Upgrade sisteminden hız al
         float baseReelSpeed = catchSpeed;
         if (UpgradeManager.instance != null)
         {
             baseReelSpeed = UpgradeManager.instance.GetValue(UpgradeType.ReelSpeed);
         }
-        
+
         actualCatchSpeed = baseReelSpeed * factor;
+
+        // Difficulty makes reeling harder (slower) at higher difficulties.
+        float difficultyT = Mathf.Clamp01((difficulty - 1f) / 4f);
+        actualCatchSpeed *= Mathf.Lerp(1f, 0.6f, difficultyT);
 
         // Line Strength: outside penalty gets reduced (harder to "lose the fish")
         float strengthPct = 0f;
         if (UpgradeManager.instance != null)
             strengthPct = Mathf.Clamp(UpgradeManager.instance.GetValue(UpgradeType.LineStrength), 0f, 75f);
         actualDrainSpeed = drainSpeed * (1f - (strengthPct / 100f));
+        // Difficulty increases how punishing it is to miss the window.
+        actualDrainSpeed *= Mathf.Lerp(1.2f, 2.0f, difficultyT);
 
         // Zorluğa göre yeşil alan boyutunu ayarla
         float baseSize = 150f;
@@ -143,8 +158,9 @@ public class FishingMiniGame : MonoBehaviour
         {
             baseSize = UpgradeManager.instance.GetValue(UpgradeType.BarSize);
         }
-        
-        float newSize = Mathf.Lerp(baseSize, baseSize * 0.5f, (difficulty - 1) / 4f);
+
+        float newSize = Mathf.Lerp(baseSize * 0.85f, baseSize * 0.30f, difficultyT);
+        newSize = Mathf.Max(45f, newSize);
         catchArea.sizeDelta = new Vector2(catchArea.sizeDelta.x, newSize);
         catchAreaSize = newSize;
 
@@ -156,6 +172,35 @@ public class FishingMiniGame : MonoBehaviour
         }
 
         if (BoatController.instance != null) BoatController.instance.canMove = false;
+    }
+
+    private void ApplyFishIconSilhouette(Sprite fishSprite)
+    {
+        if (fishIcon == null) return;
+
+        if (fishIconImage == null)
+            fishIconImage = fishIcon.GetComponent<Image>();
+
+        if (fishIconImage == null) return;
+
+        if (fishSprite != null)
+        {
+            fishIconImage.sprite = fishSprite;
+            fishIconImage.preserveAspect = true;
+            // Monochrome silhouette (works regardless of original sprite colors)
+            fishIconImage.color = new Color(0f, 0f, 0f, 0.9f);
+            fishIcon.localRotation = Quaternion.identity;
+            fishIcon.sizeDelta = new Vector2(36, 36);
+        }
+        else
+        {
+            // Fallback: keep the original diamond marker
+            fishIconImage.sprite = null;
+            fishIconImage.preserveAspect = false;
+            fishIconImage.color = new Color(1f, 0.7f, 0.1f);
+            fishIcon.localRotation = Quaternion.Euler(0, 0, 45);
+            fishIcon.sizeDelta = new Vector2(30, 30);
+        }
     }
 
     public void EndGame(bool win)
@@ -185,31 +230,31 @@ public class FishingMiniGame : MonoBehaviour
             fishTarget = Random.value;
 
             // Balık bazen beklesin (Daha doğal)
-            if (Random.value > 0.7f) fishTarget = fishPosition;
+            if (Random.value > 0.97f) fishTarget = fishPosition;
 
-            fishMoveTimer = Random.Range(1f, 2.5f);
+            fishMoveTimer = Random.Range(0.45f, 1.1f);
         }
 
         // Hava durumu etkisi (Fırtınada balık daha çok kaçar)
         float weatherMultiplier = 1f;
 
         // Balık hareketi
-        float speed = Time.deltaTime * (0.2f + (currentDifficulty * 0.1f)) * weatherMultiplier;
+        float speed = Time.deltaTime * (0.45f + (currentDifficulty * 0.28f)) * weatherMultiplier;
         fishPosition = Mathf.MoveTowards(fishPosition, fishTarget, speed);
 
         // Kenarlarda çok durmasın
-        if (fishPosition < 0.05f && Random.value > 0.9f) fishTarget = 0.3f;
-        if (fishPosition > 0.95f && Random.value > 0.9f) fishTarget = 0.7f;
+        if (fishPosition < 0.05f && Random.value > 0.75f) fishTarget = 0.35f;
+        if (fishPosition > 0.95f && Random.value > 0.75f) fishTarget = 0.65f;
     }
 
     void UpdatePlayerInput()
     {
         bool isPressing = false;
-        
+
         // Input kontrolünü optimize et (Null checkleri azalt)
         var kb = Keyboard.current;
         if (kb != null && kb.spaceKey.isPressed) isPressing = true;
-        
+
         if (!isPressing) // Eğer klavye basılı değilse mouse'a bak
         {
             var mouse = Mouse.current;
@@ -217,7 +262,7 @@ public class FishingMiniGame : MonoBehaviour
         }
 
         // Daha tok fizik (Snappy) - Hız düşürüldü
-        float acceleration = isPressing ? 8f : -6f; 
+        float acceleration = isPressing ? 8f : -6f;
         catchVelocity += acceleration * Time.deltaTime;
 
         // Yüksek sürtünme (Kontrolü kolaylaştırır)
@@ -257,6 +302,16 @@ public class FishingMiniGame : MonoBehaviour
         else
         {
             float drain = (actualDrainSpeed > 0f) ? actualDrainSpeed : drainSpeed;
+
+            // Farther miss => stronger drain (still fair near the edge)
+            float distOutside = 0f;
+            if (fishPosition < minCatch) distOutside = minCatch - fishPosition;
+            else if (fishPosition > maxCatch) distOutside = fishPosition - maxCatch;
+
+            // Harsher miss scaling: drifting far outside gets punished fast.
+            float miss01 = Mathf.Clamp01(distOutside / 0.35f);
+            drain *= 1f + (miss01 * 1.2f);
+
             currentProgress -= drain * Time.deltaTime;
             if (statusText != null && (!hasInsideState || lastIsInside != isInside))
             {
@@ -284,7 +339,7 @@ public class FishingMiniGame : MonoBehaviour
         // Track boyutunu hesapla (barSize değil, gerçek track boyutu)
         float trackHeight = barSize - 20; // Track'in offset'lerini hesaba kat
         float halfTrack = trackHeight / 2f;
-        
+
         // Fish icon pozisyonu - sınırlar içinde
         float fishY = (fishPosition - 0.5f) * trackHeight;
         fishIcon.anchoredPosition = new Vector2(0, fishY);
@@ -293,7 +348,7 @@ public class FishingMiniGame : MonoBehaviour
         float halfCatchArea = catchAreaSize / 2f;
         float maxCatchY = halfTrack - halfCatchArea;
         float minCatchY = -halfTrack + halfCatchArea;
-        
+
         float catchY = (catchPosition - 0.5f) * trackHeight;
         catchY = Mathf.Clamp(catchY, minCatchY, maxCatchY);
         catchArea.anchoredPosition = new Vector2(0, catchY);
@@ -307,14 +362,14 @@ public class FishingMiniGame : MonoBehaviour
         {
             // Yüzde yerine kalan mesafeyi göster (Daha şık)
             float distance = Mathf.Lerp(initialDistance, 0f, currentProgress);
-            
+
             // String oluşturma maliyetini düşürmek için sadece değer değiştiğinde güncelle
             if (Mathf.Abs(distance - lastDistanceDisplayed) > 0.1f)
             {
                 distanceText.SetText(LocalizationManager.T("minigame.distanceFmt", "{0:0.0} m"), distance);
                 lastDistanceDisplayed = distance;
             }
-            
+
             // Yaklaştıkça metin büyüsün ve rengi değişsin
             distanceText.fontSize = Mathf.Lerp(24f, 32f, currentProgress);
             distanceText.color = Color.Lerp(Color.white, Color.cyan, currentProgress);
@@ -355,7 +410,7 @@ public class FishingMiniGame : MonoBehaviour
             if (c != null) canvasObj = c.gameObject;
         }
 
-        if (canvasObj == null) 
+        if (canvasObj == null)
         {
             Debug.LogError("FishingMiniGame: Canvas bulunamadi! UI olusturulamiyor.");
             return;
@@ -378,7 +433,7 @@ public class FishingMiniGame : MonoBehaviour
 
         Image bg = gamePanel.AddComponent<Image>();
         bg.color = new Color(0.1f, 0.12f, 0.18f, 0.95f);
-        
+
         // Glow efekti
         Outline glow = gamePanel.AddComponent<Outline>();
         glow.effectColor = new Color(0.3f, 0.6f, 1f, 0.4f);
@@ -426,8 +481,9 @@ public class FishingMiniGame : MonoBehaviour
         fishIcon.anchorMax = new Vector2(0.5f, 0.5f);
         fishIcon.sizeDelta = new Vector2(30, 30);
 
-        Image fishImg = fishObj.AddComponent<Image>();
-        fishImg.color = new Color(1f, 0.7f, 0.1f);
+        fishIconImage = fishObj.AddComponent<Image>();
+        fishIconImage.raycastTarget = false;
+        fishIconImage.color = new Color(1f, 0.7f, 0.1f);
         fishIcon.localRotation = Quaternion.Euler(0, 0, 45);
 
         // 5. Progress Bar
@@ -486,12 +542,12 @@ public class FishingMiniGame : MonoBehaviour
         // Outline
         distanceText.outlineWidth = 0.2f;
         distanceText.outlineColor = Color.black;
-        
+
         RectTransform distRect = distanceText.rectTransform;
         distRect.anchorMin = new Vector2(0.5f, 0f);
         distRect.anchorMax = new Vector2(0.5f, 0f);
         distRect.pivot = new Vector2(0.5f, 1f); // Üstten hizala (Panelin altına sarkıt)
-        distRect.anchoredPosition = new Vector2(0, -10); 
+        distRect.anchoredPosition = new Vector2(0, -10);
         distRect.sizeDelta = new Vector2(200, 50);
 
         if (GameManager.instance != null)

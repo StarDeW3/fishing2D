@@ -110,7 +110,7 @@ public class SoundManager : MonoBehaviour
         GameObject obj = new GameObject($"SFX_Source_{sfxPool.Count}");
         obj.transform.parent = sfxPoolParent.transform;
         AudioSource newSource = obj.AddComponent<AudioSource>();
-        
+
         // Şablondan ayarları kopyala
         newSource.outputAudioMixerGroup = sfxSource.outputAudioMixerGroup;
         newSource.spatialBlend = sfxSource.spatialBlend;
@@ -207,11 +207,11 @@ public class SoundManager : MonoBehaviour
 
         AudioSource source = GetAvailableSFXSource();
         if (source == null) return;
-        
+
         // Pitch ve Volume ayarla
         source.pitch = 1f + Random.Range(-pitchVariance, pitchVariance);
         source.volume = sfxVolume * volumeScale;
-        
+
         source.clip = clip;
         source.Play();
     }

@@ -65,9 +65,9 @@ public class Fish : MonoBehaviour
         // Rastgele bir yöne başla
         direction = Random.value > 0.5f ? 1f : -1f;
         UpdateFacing();
-        
+
         turnWait = new WaitForSeconds(turnDelay);
-        
+
         if (swimRoutine != null) StopCoroutine(swimRoutine);
         swimRoutine = StartCoroutine(SwimRoutine());
     }
@@ -77,8 +77,8 @@ public class Fish : MonoBehaviour
         // Start logic moved to OnEnable/ResetState for pooling support
         if (turnWait == null)
         {
-             turnWait = new WaitForSeconds(turnDelay);
-             swimRoutine = StartCoroutine(SwimRoutine());
+            turnWait = new WaitForSeconds(turnDelay);
+            swimRoutine = StartCoroutine(SwimRoutine());
         }
     }
 
@@ -106,7 +106,7 @@ public class Fish : MonoBehaviour
     void ChangeDirection()
     {
         if (isCaught) return;
-        
+
         direction *= -1f;
         UpdateFacing();
     }
@@ -127,9 +127,9 @@ public class Fish : MonoBehaviour
 
         rb.linearVelocity = Vector2.zero;
         rb.bodyType = RigidbodyType2D.Kinematic; // Fizikten etkilenmesin
-        
+
         if (col != null) col.enabled = false; // Başka şeye çarpmasın
-        
+
         t.SetParent(hookTransform); // Kancanın çocuğu olsun
         t.localPosition = Vector3.zero; // Kancanın tam ortasına gelsin
         t.localRotation = Quaternion.identity;
@@ -142,14 +142,14 @@ public class Fish : MonoBehaviour
         t.SetParent(null); // Kancadan ayrıl
         isCaught = false;
         rb.bodyType = RigidbodyType2D.Dynamic;
-        
+
         if (col != null) col.enabled = true;
-        
+
         // Hızla kaç
         speed *= 3f;
         direction *= -1f; // Ters yöne kaç
         UpdateFacing();
-        
+
         swimRoutine = StartCoroutine(SwimRoutine()); // Resume swimming logic (though it will be destroyed soon)
 
         // Optimization: Use Object Pooling
@@ -208,7 +208,7 @@ public class Fish : MonoBehaviour
             // turnDelay değiştiyse bekleme objesini yenile
             turnWait = new WaitForSeconds(turnDelay);
         }
-        
+
         if (sr != null && newSprite != null)
         {
             sr.sprite = newSprite;
@@ -237,8 +237,8 @@ public class Fish : MonoBehaviour
             capsuleCol.size = sr.sprite.bounds.size;
             capsuleCol.offset = Vector2.zero;
             // Yönü otomatik ayarla (Yatay balıklar için)
-            capsuleCol.direction = (sr.sprite.bounds.size.x > sr.sprite.bounds.size.y) 
-                ? CapsuleDirection2D.Horizontal 
+            capsuleCol.direction = (sr.sprite.bounds.size.x > sr.sprite.bounds.size.y)
+                ? CapsuleDirection2D.Horizontal
                 : CapsuleDirection2D.Vertical;
         }
     }

@@ -64,6 +64,8 @@ public partial class GameManager
                 new Vector2(20, -20),
                 new Vector2(200, 50));
 
+            ApplyPanelShadow(moneyPanel);
+
             moneyText = CreateTMPTextObject("MoneyText", moneyPanel.transform);
 
             moneyText.fontSize = 32;
@@ -94,6 +96,8 @@ public partial class GameManager
                 new Vector2(1, 1),
                 new Vector2(-20, -20),
                 new Vector2(160, 80));
+
+            ApplyPanelShadow(timePanel);
 
             timeText = CreateTMPTextObject("TimeText", timePanel.transform);
 
@@ -165,6 +169,8 @@ public partial class GameManager
             Image bg = pausePanel.AddComponent<Image>();
             bg.color = new Color(0.1f, 0.1f, 0.15f, 0.9f);
 
+            ApplyPanelShadow(pausePanel);
+
             // Üst ortada küçük kutu
             RectTransform rect = pausePanel.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 1f);
@@ -214,9 +220,7 @@ public partial class GameManager
             rect.sizeDelta = new Vector2(400, 280);
 
             // Kenar efekti
-            Outline goOutline = gameOverPanel.AddComponent<Outline>();
-            goOutline.effectColor = new Color(0.8f, 0.2f, 0.2f, 0.6f);
-            goOutline.effectDistance = new Vector2(4, -4);
+            ApplyPanelShadow(gameOverPanel);
 
             // "GAME OVER" Başlığı
             GameObject titleObj = new GameObject("TitleText");
@@ -256,6 +260,7 @@ public partial class GameManager
             Button btn = btnObj.AddComponent<Button>();
             Image btnImg = btnObj.AddComponent<Image>();
             btnImg.color = new Color(0.2f, 0.5f, 0.2f);
+            ApplyButtonTint(btn, btnImg, btnImg.color);
 
             RectTransform btnRect = btnObj.GetComponent<RectTransform>();
             btnRect.anchorMin = new Vector2(0.5f, 0);

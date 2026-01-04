@@ -34,7 +34,7 @@ public partial class GameManager : MonoBehaviour
     public TextMeshProUGUI depthText;
     public GameObject gameOverPanel;
     public TextMeshProUGUI finalScoreText;
-    public TextMeshProUGUI feedbackText; 
+    public TextMeshProUGUI feedbackText;
     public GameObject pausePanel;
     public GameObject shopPanel; // Shop UI
     public GameObject mainMenuPanel; // Ana menü
@@ -101,6 +101,67 @@ public partial class GameManager : MonoBehaviour
         rectTransform.anchorMax = Vector2.one;
         rectTransform.offsetMin = Vector2.zero;
         rectTransform.offsetMax = Vector2.zero;
+    }
+
+    private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
+
+    private static Color Clamp01(Color c) => new Color(Clamp01(c.r), Clamp01(c.g), Clamp01(c.b), Clamp01(c.a));
+
+    private static void ReplaceOutlineWithShadow(GameObject go, Color shadowColor, Vector2 shadowDistance)
+    {
+        if (go == null) return;
+
+        Outline outline = go.GetComponent<Outline>();
+        if (outline != null) Object.Destroy(outline);
+
+        Graphic g = go.GetComponent<Graphic>();
+        if (g == null) return;
+
+        Shadow shadow = go.GetComponent<Shadow>();
+        if (shadow == null) shadow = go.AddComponent<Shadow>();
+        shadow.effectColor = shadowColor;
+        shadow.effectDistance = shadowDistance;
+        shadow.useGraphicAlpha = true;
+    }
+
+    private static void ApplyPanelOutline(GameObject panel, Color effectColor, Vector2 effectDistance)
+    {
+        if (panel == null) return;
+        if (panel.GetComponent<Outline>() != null) return;
+        if (panel.GetComponent<Graphic>() == null) return;
+
+        Outline outline = panel.AddComponent<Outline>();
+        outline.effectColor = effectColor;
+        outline.effectDistance = effectDistance;
+    }
+
+    private static void ApplyPanelShadow(GameObject panel)
+    {
+        if (panel == null) return;
+
+        // Soft drop shadow for depth (no built-in sprite dependency)
+        ReplaceOutlineWithShadow(panel, new Color(0f, 0f, 0f, 0.45f), new Vector2(0, -4));
+    }
+
+    private static void ApplyButtonTint(Button button, Image target, Color baseColor)
+    {
+        if (button == null || target == null) return;
+
+        target.color = baseColor;
+
+        // Ensure transitions actually affect this Image
+        button.targetGraphic = target;
+
+        button.transition = Selectable.Transition.ColorTint;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1f, 1f, 1f, 0.92f);
+        colors.pressedColor = new Color(1f, 1f, 1f, 0.82f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
     }
 
     private TextMeshProUGUI CreateStretchedLabel(Transform parent, string name, string text, float fontSize, Color color,
@@ -192,25 +253,25 @@ public partial class GameManager : MonoBehaviour
 
         CreateUI();
         CreateMainMenu();
-        
+
         // FishingMiniGame'i kontrol et ve ekle
         if (FishingMiniGame.instance == null)
         {
             gameObject.AddComponent<FishingMiniGame>();
         }
-        
+
         // UpgradeManager kontrolü
         if (UpgradeManager.instance == null)
         {
             gameObject.AddComponent<UpgradeManager>();
         }
-        
+
         // UIManager kontrolü
         if (UIManager.instance == null)
         {
             gameObject.AddComponent<UIManager>();
         }
-        
+
         if (autoStartGameOnLoad)
         {
             StartGame(false);
@@ -649,7 +710,7 @@ public partial class GameManager : MonoBehaviour
             // Basitçe:
             int h = Mathf.FloorToInt(hour);
             int m = Mathf.FloorToInt((hour - h) * 60f);
-            
+
             // Optimization: Only update text if minute changed
             if (m != lastMinute)
             {
@@ -789,11 +850,11 @@ public partial class GameManager : MonoBehaviour
                 // Yukarı doğru süzülme efekti
                 feedbackText.rectTransform.anchoredPosition += Vector2.up * Time.deltaTime * 50f;
                 // Yavaşça kaybolma
-                feedbackText.alpha = Mathf.Clamp01(timer); 
+                feedbackText.alpha = Mathf.Clamp01(timer);
             }
             yield return null;
         }
-        
+
         feedbackText.gameObject.SetActive(false);
     }
 
@@ -802,13 +863,13 @@ public partial class GameManager : MonoBehaviour
         money += amount;
         PlayerPrefs.SetInt(PREF_MONEY, money);
         PlayerPrefs.Save();
-        
+
         // Efekt (Para rengi)
         if (moneyText != null) moneyText.color = Color.green;
-        
+
         UpdateMoneyUI();
     }
-    
+
     public bool SpendMoney(int amount)
     {
         if (money >= amount)
@@ -854,7 +915,7 @@ public partial class GameManager : MonoBehaviour
         bool enablePauseMenu = (pauseMask & PauseSource.PauseMenu) == 0;
         SetPause(PauseSource.PauseMenu, enablePauseMenu);
     }
-    
+
     void CleanupOldUI(Transform parent, string objName)
     {
         Transform old = parent.Find(objName);

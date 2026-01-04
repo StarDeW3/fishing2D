@@ -17,6 +17,11 @@ public class FishingRod : MonoBehaviour
     [Tooltip("Fırlatma yönü (X: İleri, Y: Yukarı/Aşağı). Suya atmak için Y negatif olmalı.")]
     public Vector2 throwDirection = new Vector2(0.2f, -1f); // Varsayılan: Hafif ileri ve aşağı
 
+    [Header("Kanca Limit")]
+    public bool limitHookHorizontal = true;
+    [Tooltip("Kancanın, olta ucuna göre sağ/sol maksimum gidebileceği mesafe (world units).")]
+    public float hookMaxHorizontalOffset = 6f;
+
     private GameObject currentHook;
     private LineRenderer lineRenderer;
     private bool isCasting = false;
@@ -30,7 +35,7 @@ public class FishingRod : MonoBehaviour
         lineRenderer = GetComponent<LineRenderer>();
         lineRenderer.positionCount = 2;
         lineRenderer.enabled = false;
-        
+
         // Line Renderer ayarları (ince bir ip gibi görünmesi için)
         lineRenderer.startWidth = 0.05f;
         lineRenderer.endWidth = 0.05f;
@@ -42,7 +47,7 @@ public class FishingRod : MonoBehaviour
 
         if (Camera.main != null)
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
-            
+
         waveManager = WaveManager.instance;
     }
 
@@ -114,20 +119,20 @@ public class FishingRod : MonoBehaviour
         // Bezier Eğrisi ile ipin sarkmasını simüle et
         if (linePoints == null || linePoints.Length != LINE_POINT_COUNT)
             linePoints = new Vector3[LINE_POINT_COUNT];
-        
+
         Vector3 p0 = rodTip.position;
         Vector3 p2 = currentHook.transform.position;
-        
+
         // Orta kontrol noktası (Sarkma miktarı)
         float distance = Vector3.Distance(p0, p2);
-        float sagAmount = distance * 0.3f; 
-        
+        float sagAmount = distance * 0.3f;
+
         // Kanca suyun altındaysa sarkma azalır
         if (waveManager == null) waveManager = WaveManager.instance; // Lazy load if needed
-        
+
         if (waveManager != null && p2.y < waveManager.GetWaveHeight(p2.x))
         {
-            sagAmount *= 0.2f; 
+            sagAmount *= 0.2f;
         }
 
         // Mini oyun sırasında ip gergin olsun (Balık çekiliyor)
@@ -146,7 +151,7 @@ public class FishingRod : MonoBehaviour
             float u = 1 - t;
             float tt = t * t;
             float uu = u * u;
-            
+
             Vector3 pos = uu * p0 + 2 * u * t * p1 + tt * p2;
 
             linePoints[i] = pos;
@@ -162,7 +167,7 @@ public class FishingRod : MonoBehaviour
             SoundManager.instance.PlaySFX(SoundManager.instance.castSound, 1f, 0.1f); // Hafif pitch değişimi
 
         currentHook = Instantiate(hookPrefab, rodTip.position, Quaternion.identity);
-        
+
         // Hook scriptine referans ata (Optimizasyon)
         Hook hookScript = currentHook.GetComponent<Hook>();
         if (hookScript != null)
@@ -171,13 +176,13 @@ public class FishingRod : MonoBehaviour
         }
 
         Rigidbody2D hookRb = currentHook.GetComponent<Rigidbody2D>();
-        
+
         // Fırlatma yönü: Ayarlanan vektörü kullan
         Vector2 dir = throwDirection.normalized;
-        
+
         // Eğer tekne sola dönükse (basit kontrol) yönü çevir
         if (transform.right.x < 0)
-             dir.x *= -1;
+            dir.x *= -1;
 
         // Upgrade sisteminden mesafe/force bonusu al
         float finalForce = castForce;
@@ -231,7 +236,7 @@ public class FishingRod : MonoBehaviour
         if (GameManager.instance != null)
         {
             GameManager.instance.AddMoney(payout); // Score -> Money (+ storage bonus)
-            
+
             string fishName = !string.IsNullOrEmpty(fish.fishName) ? fish.fishName : LocalizationManager.T("fish.defaultName", "Balık");
             bool showRarity = SettingsManager.instance == null || SettingsManager.instance.ShowRarityOnCatch;
             string rarity = (showRarity && !string.IsNullOrEmpty(fish.rarityLabel)) ? $" ({fish.rarityLabel})" : "";
@@ -247,9 +252,9 @@ public class FishingRod : MonoBehaviour
         }
 
         if (fish != null) fish.Despawn();
-        
+
         ResetFishingState();
-        
+
         // Success specific shake
         if (cameraFollow != null)
             cameraFollow.TriggerShake(0.5f, 0.3f);
@@ -268,7 +273,7 @@ public class FishingRod : MonoBehaviour
         ResetFishingState();
 
         // Fail specific shake
-        if (cameraFollow != null) 
+        if (cameraFollow != null)
             cameraFollow.TriggerShake(0.5f, 0.5f);
     }
 
@@ -289,14 +294,14 @@ public class FishingRod : MonoBehaviour
     private void ResetFishingState()
     {
         if (cameraFollow != null) cameraFollow.secondaryTarget = null;
-        
+
         if (currentHook != null) Destroy(currentHook);
-        
+
         isCasting = false;
-        
+
         if (BoatController.instance != null)
             BoatController.instance.canMove = true;
-            
+
         lineRenderer.enabled = false;
     }
 
@@ -311,16 +316,31 @@ public class FishingRod : MonoBehaviour
         {
             Gizmos.color = Color.magenta;
             Vector3 start = rodTip.position;
-            
+
             // Fırlatma yönünü görselleştir
             Vector3 dir = throwDirection.normalized;
             // Eğer tekne sola dönükse (basit kontrol - editörde çalışmayabilir ama runtime'da fikir verir)
             if (transform.right.x < 0) dir.x *= -1;
 
             Vector3 end = start + dir * 3f; // 3 birim uzunluğunda bir çizgi
-            
+
             Gizmos.DrawLine(start, end);
             Gizmos.DrawSphere(end, 0.1f); // Ok ucu niyetine
+
+            // Kancanın sağ/sol limitini göster
+            if (limitHookHorizontal)
+            {
+                float max = Mathf.Max(0f, hookMaxHorizontalOffset);
+                Gizmos.color = new Color(0.2f, 1f, 1f, 0.9f);
+
+                Vector3 left = new Vector3(start.x - max, start.y, start.z);
+                Vector3 right = new Vector3(start.x + max, start.y, start.z);
+
+                const float h = 6f;
+                Gizmos.DrawLine(left + Vector3.up * h, left + Vector3.down * h);
+                Gizmos.DrawLine(right + Vector3.up * h, right + Vector3.down * h);
+                Gizmos.DrawLine(left, right);
+            }
         }
     }
 }

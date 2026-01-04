@@ -165,6 +165,12 @@ public class UIManager : MonoBehaviour
         Image bg = statsPanel.AddComponent<Image>();
         bg.color = new Color(0.05f, 0.02f, 0.1f, 0.92f);
 
+        // Soft shadow (avoid built-in sprite paths; they vary by Unity version)
+        Shadow shadow = statsPanel.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+        shadow.effectDistance = new Vector2(0, -4);
+        shadow.useGraphicAlpha = true;
+
 
         RectTransform rect = statsPanel.GetComponent<RectTransform>();
         // Sağ tarafta kompakt panel
@@ -173,7 +179,7 @@ public class UIManager : MonoBehaviour
         rect.pivot = new Vector2(1f, 0.5f);
         rect.anchoredPosition = new Vector2(-10, 0);
         rect.sizeDelta = new Vector2(280, 0);
-        
+
         // Kenar efekti
         // Başlık
         CreateTextElement(statsPanel.transform, "Title", LocalizationManager.T("ui.stats.title", "ISTATISTIKLER"),
@@ -184,7 +190,7 @@ public class UIManager : MonoBehaviour
 
         // İstatistikler - daha kompakt
         float yPos = -70;
-        
+
         GameObject fishStatObj = CreateTextElement(statsPanel.transform, "TotalFish", LocalizationManager.Format("ui.stats.fishFmt", "Fish: {0}", 0),
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, yPos), 24, TextAlignmentOptions.Center);
         totalFishText = fishStatObj.GetComponent<TextMeshProUGUI>();
@@ -209,7 +215,7 @@ public class UIManager : MonoBehaviour
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
-        
+
         TextMeshProUGUI tmp = obj.AddComponent<TextMeshProUGUI>();
         if (TMP_Settings.defaultFontAsset != null)
             tmp.font = TMP_Settings.defaultFontAsset;
@@ -240,6 +246,20 @@ public class UIManager : MonoBehaviour
         img.color = new Color(0.7f, 0.15f, 0.15f, 0.9f);
 
         Button btn = btnObj.AddComponent<Button>();
+
+        // Modern color-tint states (same behavior)
+        btn.transition = Selectable.Transition.ColorTint;
+        btn.targetGraphic = img;
+        ColorBlock colors = btn.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1f, 1f, 1f, 0.92f);
+        colors.pressedColor = new Color(1f, 1f, 1f, 0.82f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        btn.colors = colors;
+
         btn.onClick.AddListener(onClick);
         btn.onClick.AddListener(() => ResumeGame());
 
@@ -300,10 +320,10 @@ public class UIManager : MonoBehaviour
     {
         if (totalFishText != null)
             totalFishText.SetText(LocalizationManager.T("ui.stats.fishFmt", "Fish: {0}"), totalFishCaught);
-        
+
         if (totalMoneyEarnedText != null)
             totalMoneyEarnedText.SetText(LocalizationManager.T("ui.stats.earningsFmt", "Earnings: ${0}"), totalMoneyEarned);
-        
+
         if (playTimeText != null)
         {
             int minutes = Mathf.FloorToInt(playTime / 60);

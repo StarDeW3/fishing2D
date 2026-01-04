@@ -585,6 +585,8 @@ MonoBehaviour:
   hookPrefab: {fileID: 2496329662023477224, guid: 73bb884b5ba735c4abf2d05e76d70d38, type: 3}
   castForce: 5
   throwDirection: {x: 0, y: -1}
+  limitHookHorizontal: 1
+  hookMaxHorizontalOffset: 11
   isMiniGameActive: 0
   showGizmos: 1
 --- !u!120 &503533733
@@ -733,7 +735,7 @@ MonoBehaviour:
   speed: 1
   offset: 0
   useDetailWaves: 1
-  detailAmplitude: 0.23
+  detailAmplitude: 0.1
   detailLength: 1
   detailSpeed: 2
   weatherIntensity: 1
@@ -1223,7 +1225,76 @@ MonoBehaviour:
   fishPrefab: {fileID: 0}
   spawnInterval: 3
   maxFishCount: 15
-  fishTypes: []
+  fishTypes:
+  - name: Small Fish
+    nameTR: 
+    nameEN: 
+    localizationKey: 
+    sprite: {fileID: -1842537561509974407, guid: c0fee99e3b780044aaadbcd9bffe5c1d, type: 3}
+    rarity: 0
+    rarityDisplayName: 
+    luckWeightMultiplier: 1
+    spawnWeight: 50
+    speed: 2
+    turnDelay: 5
+    difficulty: 1
+    scale: 1
+    score: 10
+    overrideSpawnYRange: 0
+    minYOverride: -10
+    maxYOverride: -2
+  - name: Medium Fish
+    nameTR: 
+    nameEN: 
+    localizationKey: 
+    sprite: {fileID: 0}
+    rarity: 1
+    rarityDisplayName: 
+    luckWeightMultiplier: 1
+    spawnWeight: 30
+    speed: 3
+    turnDelay: 5
+    difficulty: 2.5
+    scale: 1.05
+    score: 25
+    overrideSpawnYRange: 0
+    minYOverride: -10
+    maxYOverride: -2
+  - name: Big Fish
+    nameTR: 
+    nameEN: 
+    localizationKey: 
+    sprite: {fileID: 0}
+    rarity: 2
+    rarityDisplayName: 
+    luckWeightMultiplier: 1
+    spawnWeight: 15
+    speed: 4
+    turnDelay: 5
+    difficulty: 4
+    scale: 1.15
+    score: 50
+    overrideSpawnYRange: 0
+    minYOverride: -10
+    maxYOverride: -2
+  - name: Legendary Fish
+    nameTR: 
+    nameEN: 
+    localizationKey: 
+    sprite: {fileID: 0}
+    rarity: 4
+    rarityDisplayName: 
+    luckWeightMultiplier: 1
+    spawnWeight: 5
+    speed: 6
+    turnDelay: 5
+    difficulty: 5
+    scale: 1.25
+    score: 100
+    overrideSpawnYRange: 0
+    minYOverride: -10
+    maxYOverride: -2
+  populateDefaultFishTypesInEditor: 1
   minX: -10
   maxX: 10
   minY: -67.98

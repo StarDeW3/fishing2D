@@ -28,7 +28,7 @@ public class BoatController : MonoBehaviour
     public float rotationSpeed = 2f;
     public float depthBeforeSubmerged = 1f;
     public float displacementAmount = 1.5f;
-    
+
     [Header("Stabilite (Upgrade ile değişir)")]
     public float stabilityMultiplier = 1f; // Düşük = daha stabil
 
@@ -45,11 +45,11 @@ public class BoatController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         waveManager = WaveManager.instance;
         baseSpeed = moveSpeed;
-        
+
         // Upgrade'den hızı al
         ApplyUpgrades();
     }
-    
+
     public void ApplyUpgrades()
     {
         if (UpgradeManager.instance != null)
@@ -57,7 +57,7 @@ public class BoatController : MonoBehaviour
             // Tekne hızı
             float speedValue = UpgradeManager.instance.GetValue(UpgradeType.BoatSpeed);
             if (speedValue > 0) moveSpeed = speedValue;
-            
+
             // Tekne stabilitesi (1.0 = normal, 1.75 = çok stabil)
             stabilityMultiplier = UpgradeManager.instance.GetValue(UpgradeType.BoatStability);
         }
@@ -125,7 +125,7 @@ public class BoatController : MonoBehaviour
         // 2. Yüzme Mantığı (Buoyancy)
         // Teknenin olduğu yerdeki su yüksekliği
         float waveHeight = waveManager.GetWaveHeight(transform.position.x);
-        
+
         // Kaldırma kuvvetinin uygulanacağı nokta (Ofset eklenmiş)
         float checkY = transform.position.y + surfaceOffset;
 
@@ -134,10 +134,10 @@ public class BoatController : MonoBehaviour
         if (isInWater)
         {
             float displacementMultiplier = Mathf.Clamp01((waveHeight - checkY) / depthBeforeSubmerged) * displacementAmount;
-            
+
             // Yukarı doğru kuvvet uygula (Yerçekimini yenmek için)
             rb.AddForce(new Vector2(0f, Mathf.Abs(Physics2D.gravity.y) * displacementMultiplier * floatStrength), ForceMode2D.Force);
-            
+
             // Su sürtünmesi (Damping) - suyun içindeyken yavaşlasın
             if (!lastWasInWater)
             {
@@ -161,7 +161,7 @@ public class BoatController : MonoBehaviour
         // Analitik türev kullanarak eğimi hesapla (Daha hassas ve performanslı)
         float slope = waveManager.GetWaveSlope(transform.position.x);
         float targetAngle = Mathf.Atan2(slope, 1f) * Mathf.Rad2Deg;
-        
+
         // Stabilite upgrade'i - daha stabil = daha az sallanma
         float actualRotationSpeed = rotationSpeed / stabilityMultiplier;
         targetAngle = targetAngle / stabilityMultiplier; // Sallanma açısını azalt
@@ -171,7 +171,7 @@ public class BoatController : MonoBehaviour
         float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, Time.fixedDeltaTime * actualRotationSpeed);
         rb.MoveRotation(newAngle);
     }
-    
+
     void ApplyWeatherEffects()
     {
         // Hava durumu kaldırıldı
@@ -180,10 +180,10 @@ public class BoatController : MonoBehaviour
     void OnDrawGizmos()
     {
         if (rb == null) rb = GetComponent<Rigidbody2D>();
-        
+
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, 0.5f);
-        
+
         // Batma ofsetini göster
         Gizmos.color = Color.green;
         Gizmos.DrawSphere(transform.position + Vector3.up * surfaceOffset, 0.2f);
@@ -192,7 +192,7 @@ public class BoatController : MonoBehaviour
         Gizmos.color = Color.red;
         Vector3 leftCheck = transform.position + Vector3.left * 1.0f;
         Vector3 rightCheck = transform.position + Vector3.right * 1.0f;
-        
+
         Gizmos.DrawLine(transform.position, leftCheck);
         Gizmos.DrawLine(transform.position, rightCheck);
         Gizmos.DrawSphere(leftCheck, 0.1f);

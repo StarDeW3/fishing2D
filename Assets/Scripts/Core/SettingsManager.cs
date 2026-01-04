@@ -20,11 +20,11 @@ public class SettingsManager : MonoBehaviour
 
     public event Action SettingsChanged;
 
-    [Range(0f, 1f)] [SerializeField] private float musicVolume = 0.5f;
-    [Range(0f, 1f)] [SerializeField] private float sfxVolume = 1f;
+    [Range(0f, 1f)][SerializeField] private float musicVolume = 0.5f;
+    [Range(0f, 1f)][SerializeField] private float sfxVolume = 1f;
     [SerializeField] private bool muted = false;
 
-    [Range(0f, 1f)] [SerializeField] private float shakeIntensity = 1f;
+    [Range(0f, 1f)][SerializeField] private float shakeIntensity = 1f;
     [SerializeField] private bool showRarityOnCatch = true;
     [SerializeField] private GameLanguage language = GameLanguage.Turkish;
 

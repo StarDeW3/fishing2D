@@ -13,7 +13,17 @@ public class FishType
         Legendary
     }
 
+    [Tooltip("Internal/fallback name. If localizationKey is set, UI will show the localized name instead.")]
     public string name = "Fish";
+
+    [Header("Isim (Inspector Lokalizasyon)")]
+    [Tooltip("Türkçe isim. Doluysa Türkçe dilinde direkt bunu kullanır (JSON gerekmez).")]
+    public string nameTR = "";
+    [Tooltip("English name. If set, English language will use this directly (no JSON needed).")]
+    public string nameEN = "";
+
+    [Tooltip("Localization key for the fish name (e.g. fish.sardine). If empty, 'name' is used as-is.")]
+    public string localizationKey = "";
     public Sprite sprite;
 
     [Header("Nadirlik")]
@@ -39,6 +49,26 @@ public class FishType
         }
     }
 
+    public string GetDisplayName()
+    {
+        GameLanguage lang = GameLanguage.Turkish;
+        if (SettingsManager.instance != null)
+            lang = SettingsManager.instance.Language;
+
+        // 1) Inspector'dan girilen isimler (JSON gerekmez)
+        if (lang == GameLanguage.English && !string.IsNullOrEmpty(nameEN))
+            return nameEN;
+        if (lang == GameLanguage.Turkish && !string.IsNullOrEmpty(nameTR))
+            return nameTR;
+
+        // 2) localizationKey varsa JSON'dan çek (opsiyonel)
+        if (!string.IsNullOrEmpty(localizationKey))
+            return LocalizationManager.T(localizationKey, name);
+
+        // 3) Sadece name fallback
+        return string.IsNullOrEmpty(name) ? "Fish" : name;
+    }
+
     [Header("Davranış")]
     public float speed = 2f;
     [Min(0f)] public float turnDelay = 5f;
@@ -62,15 +92,19 @@ public class FishSpawner : MonoBehaviour
     public GameObject fishPrefab; // Prefab kullanımı performans için daha iyidir
     public float spawnInterval = 3f;
     public int maxFishCount = 15; // Ekranda aynı anda olabilecek maksimum balık
-    
+
     [Header("Balik Turleri")]
     public List<FishType> fishTypes;
-    
+
+    [Header("Editor")]
+    [Tooltip("Listede hiç balık yoksa, editörde otomatik varsayılan balıkları ekler (Inspector'da görünsün diye).")]
+    [SerializeField] private bool populateDefaultFishTypesInEditor = true;
+
     [Header("Spawn Alani")]
     public float minX = -15f;
     public float maxX = 15f;
-    public float minY = -10f; 
-    public float maxY = -2f; 
+    public float minY = -10f;
+    public float maxY = -2f;
 
     private float timer;
     private Transform fishContainer;
@@ -80,8 +114,91 @@ public class FishSpawner : MonoBehaviour
     private int currentFishCount = 0;
     private int totalWeight;
 
+    private static Sprite s_defaultSpriteCache;
+
+    public static Sprite GetDefaultSprite()
+    {
+        if (s_defaultSpriteCache != null)
+            return s_defaultSpriteCache;
+
+        // Varsayılan Sprite oluştur (Basit bir balık silüeti)
+        const int w = 64;
+        const int h = 32;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.hideFlags = HideFlags.HideAndDontSave;
+        tex.filterMode = FilterMode.Point;
+        tex.wrapMode = TextureWrapMode.Clamp;
+
+        Color[] colors = new Color[w * h];
+        for (int i = 0; i < colors.Length; i++) colors[i] = Color.clear;
+
+        // Body ellipse (right side)
+        float cx = 38f;
+        float cy = 16f;
+        float rx = 18f;
+        float ry = 9f;
+
+        // Tail triangle (left)
+        Vector2 t0 = new Vector2(8f, 16f);
+        Vector2 t1 = new Vector2(22f, 8f);
+        Vector2 t2 = new Vector2(22f, 24f);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                // Ellipse test
+                float dx = (x - cx) / rx;
+                float dy = (y - cy) / ry;
+                bool inBody = (dx * dx + dy * dy) <= 1f;
+
+                // Tail test (barycentric)
+                bool inTail = PointInTriangle(new Vector2(x + 0.5f, y + 0.5f), t0, t1, t2);
+
+                if (inBody || inTail)
+                    colors[y * w + x] = Color.white;
+            }
+        }
+
+        tex.SetPixels(colors);
+        tex.Apply(false, false);
+
+        s_defaultSpriteCache = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 32);
+        s_defaultSpriteCache.hideFlags = HideFlags.HideAndDontSave;
+        return s_defaultSpriteCache;
+    }
+
+    private static bool PointInTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+    {
+        // Barycentric technique
+        float s = a.y * c.x - a.x * c.y + (c.y - a.y) * p.x + (a.x - c.x) * p.y;
+        float t = a.x * b.y - a.y * b.x + (a.y - b.y) * p.x + (b.x - a.x) * p.y;
+
+        if ((s < 0) != (t < 0)) return false;
+
+        float A = -b.y * c.x + a.y * (c.x - b.x) + a.x * (b.y - c.y) + b.x * c.y;
+        if (A < 0)
+        {
+            s = -s;
+            t = -t;
+            A = -A;
+        }
+
+        return s >= 0 && t >= 0 && (s + t) <= A;
+    }
+
     void OnValidate()
     {
+        // Editör tarafında (play mode değilken) liste boşsa varsayılanları Inspector'da görünür hale getir.
+        if (!Application.isPlaying && populateDefaultFishTypesInEditor)
+        {
+            if (fishTypes == null || fishTypes.Count == 0)
+            {
+                if (fishTypes == null) fishTypes = new List<FishType>();
+                AddDefaultFishTypes();
+            }
+        }
+
         if (fishTypes != null && fishTypes.Count > 0)
             CalculateTotalWeight();
     }
@@ -177,20 +294,20 @@ public class FishSpawner : MonoBehaviour
 
     void AddDefaultFishTypes()
     {
-        // Varsayılan Sprite oluştur (Basit bir beyaz kare)
-        Texture2D tex = new Texture2D(64, 32);
-        Color[] colors = new Color[64 * 32];
-        for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
-        tex.SetPixels(colors);
-        tex.Apply();
-        Sprite defaultSprite = Sprite.Create(tex, new Rect(0, 0, 64, 32), new Vector2(0.5f, 0.5f), 32);
+        if (fishTypes == null) fishTypes = new List<FishType>();
 
-        fishTypes.Add(new FishType { name = "Small Fish", rarity = FishType.FishRarity.Common, luckWeightMultiplier = 1f, speed = 2f, turnDelay = 5f, difficulty = 1f, scale = 1f, score = 10, spawnWeight = 50, sprite = defaultSprite });
-        fishTypes.Add(new FishType { name = "Medium Fish", rarity = FishType.FishRarity.Uncommon, luckWeightMultiplier = 1f, speed = 3f, turnDelay = 5f, difficulty = 2.5f, scale = 1.05f, score = 25, spawnWeight = 30, sprite = defaultSprite });
-        fishTypes.Add(new FishType { name = "Big Fish", rarity = FishType.FishRarity.Rare, luckWeightMultiplier = 1f, speed = 4f, turnDelay = 5f, difficulty = 4f, scale = 1.15f, score = 50, spawnWeight = 15, sprite = defaultSprite });
-        fishTypes.Add(new FishType { name = "Legendary Fish", rarity = FishType.FishRarity.Legendary, luckWeightMultiplier = 1f, speed = 6f, turnDelay = 5f, difficulty = 5f, scale = 1.25f, score = 100, spawnWeight = 5, sprite = defaultSprite });
-        
-        Debug.Log("Varsayilan balik turleri eklendi.");
+        // Eğer zaten doluysa tekrar ekleme.
+        if (fishTypes.Count > 0) return;
+
+        Sprite defaultSprite = GetDefaultSprite();
+
+        fishTypes.Add(new FishType { name = "Small Fish", nameTR = "Küçük Balık", nameEN = "Small Fish", localizationKey = "fish.small", rarity = FishType.FishRarity.Common, luckWeightMultiplier = 1f, speed = 2f, turnDelay = 5f, difficulty = 1f, scale = 1f, score = 10, spawnWeight = 50, sprite = defaultSprite });
+        fishTypes.Add(new FishType { name = "Medium Fish", nameTR = "Orta Balık", nameEN = "Medium Fish", localizationKey = "fish.medium", rarity = FishType.FishRarity.Uncommon, luckWeightMultiplier = 1f, speed = 3f, turnDelay = 5f, difficulty = 2.5f, scale = 1.05f, score = 25, spawnWeight = 30, sprite = defaultSprite });
+        fishTypes.Add(new FishType { name = "Big Fish", nameTR = "Büyük Balık", nameEN = "Big Fish", localizationKey = "fish.big", rarity = FishType.FishRarity.Rare, luckWeightMultiplier = 1f, speed = 4f, turnDelay = 5f, difficulty = 4f, scale = 1.15f, score = 50, spawnWeight = 15, sprite = defaultSprite });
+        fishTypes.Add(new FishType { name = "Legendary Fish", nameTR = "Efsanevi Balık", nameEN = "Legendary Fish", localizationKey = "fish.legendary", rarity = FishType.FishRarity.Legendary, luckWeightMultiplier = 1f, speed = 6f, turnDelay = 5f, difficulty = 5f, scale = 1.25f, score = 100, spawnWeight = 5, sprite = defaultSprite });
+
+        if (Application.isPlaying)
+            Debug.Log("Varsayilan balik turleri eklendi.");
     }
 
     void Update()
@@ -222,18 +339,19 @@ public class FishSpawner : MonoBehaviour
         }
 
         Vector3 pos = new Vector3(Random.Range(minX, maxX), Random.Range(yMin, yMax), 0);
-        
+
         Fish fishScript = GetFishFromPool(pos);
-        
+
         // Balık özelliklerini ayarla
         if (fishScript != null)
         {
+            Sprite spriteToUse = selectedLegacyType.sprite != null ? selectedLegacyType.sprite : GetDefaultSprite();
             fishScript.Setup(
-                selectedLegacyType.name,
+                selectedLegacyType.GetDisplayName(),
                 selectedLegacyType.speed,
                 selectedLegacyType.difficulty,
                 selectedLegacyType.score,
-                selectedLegacyType.sprite,
+                spriteToUse,
                 selectedLegacyType.turnDelay,
                 selectedLegacyType.scale,
                 selectedLegacyType.GetRarityLabelTR());
@@ -250,7 +368,7 @@ public class FishSpawner : MonoBehaviour
         {
             fish = fishPool.Dequeue();
             // Unity'nin null check'i destroyed objeleri de yakalar
-            if (fish != null) 
+            if (fish != null)
             {
                 break;
             }
@@ -275,7 +393,7 @@ public class FishSpawner : MonoBehaviour
     public void ReturnFishToPool(Fish fish)
     {
         if (fish == null) return;
-        
+
         fish.gameObject.SetActive(false);
         fishPool.Enqueue(fish);
         currentFishCount--;

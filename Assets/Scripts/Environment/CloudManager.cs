@@ -22,7 +22,7 @@ public class CloudManager : MonoBehaviour
     private Camera cam;
     private const int MAX_SPAWNS_PER_FRAME = 3;
     private float camCheckTimer = 0f;
-    
+
     // Object Pooling için liste
     private List<CloudMover> cloudPool = new List<CloudMover>();
 
@@ -69,7 +69,7 @@ public class CloudManager : MonoBehaviour
         // Kamera boyutlarına göre X pozisyonlarını hesapla
         float halfHeight = cam.orthographicSize;
         float halfWidth = halfHeight * cam.aspect;
-        
+
         // Ekranın solundan biraz dışarıda doğsun (2 birim pay)
         float spawnXPos = cam.transform.position.x - (halfWidth + 2f);
 
@@ -85,14 +85,14 @@ public class CloudManager : MonoBehaviour
             // Havuzda yoksa yeni oluştur
             GameObject prefab = cloudPrefabs[Random.Range(0, cloudPrefabs.Length)];
             GameObject cloud = Instantiate(prefab, spawnPos, Quaternion.identity);
-            
+
             // Buluta hareket scripti ekle (eğer prefabda yoksa)
             cloudScript = cloud.GetComponent<CloudMover>();
             if (cloudScript == null)
             {
                 cloudScript = cloud.AddComponent<CloudMover>();
             }
-            
+
             // Havuza ekle
             cloudPool.Add(cloudScript);
         }
@@ -103,12 +103,12 @@ public class CloudManager : MonoBehaviour
             cloudScript.transform.rotation = Quaternion.identity;
             cloudScript.gameObject.SetActive(true);
         }
-        
+
         // Hız ve kamera referansını ayarla
         float speed = Random.Range(moveSpeedMin, moveSpeedMax);
         cloudScript.SetCameraFollow(cameraFollow);
         cloudScript.Initialize(speed, cam);
-        
+
         // Rastgele boyut
         float scale = Random.Range(0.8f, 1.5f);
         cloudScript.transform.localScale = Vector3.one * scale;
@@ -130,22 +130,22 @@ public class CloudManager : MonoBehaviour
     {
         Camera camera = cam != null ? cam : Camera.main;
         if (camera == null) return;
-        
+
         float halfHeight = camera.orthographicSize;
         float halfWidth = halfHeight * camera.aspect;
         float camX = camera.transform.position.x;
-        
+
         float dynamicSpawnX = camX - (halfWidth + 2f);
         float dynamicDestroyX = camX + (halfWidth + 2f);
 
         Gizmos.color = Color.white;
         // Spawn çizgisi
         Gizmos.DrawLine(new Vector3(dynamicSpawnX, spawnHeightMin, 0), new Vector3(dynamicSpawnX, spawnHeightMax, 0));
-        
+
         Gizmos.color = Color.red;
         // Destroy çizgisi
         Gizmos.DrawLine(new Vector3(dynamicDestroyX, spawnHeightMin, 0), new Vector3(dynamicDestroyX, spawnHeightMax, 0));
-        
+
         // Yükseklik aralığı
         Gizmos.color = new Color(1, 1, 1, 0.3f);
         Gizmos.DrawLine(new Vector3(dynamicSpawnX, spawnHeightMin, 0), new Vector3(dynamicDestroyX, spawnHeightMin, 0));
@@ -205,7 +205,7 @@ public class CloudMover : MonoBehaviour
 
             lastCamX = camX;
         }
-        
+
         if (cam != null && camTransform != null)
         {
             // Camera size/aspect can change (resolution/orientation); update cache only when needed
@@ -215,7 +215,7 @@ public class CloudMover : MonoBehaviour
                 cachedAspect = cam.aspect;
                 cachedHalfWidth = cachedOrthoSize * cachedAspect;
             }
-            
+
             // Ekranın sağından biraz dışarı çıkınca pasif yap (Destroy yerine)
             if (selfTransform.position.x > camTransform.position.x + cachedHalfWidth + 2f)
             {

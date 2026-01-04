@@ -175,9 +175,12 @@ public partial class GameManager
         contentRect.pivot = new Vector2(0.5f, 0.5f);
         contentRect.sizeDelta = new Vector2(480, 620);
 
-        Outline outline = content.AddComponent<Outline>();
-        outline.effectColor = new Color(0.3f, 0.6f, 0.9f, 0.5f);
-        outline.effectDistance = new Vector2(2, -2);
+        // Card background (non-raycast) so Outline is visible
+        Image contentBg = content.AddComponent<Image>();
+        contentBg.color = new Color(0.08f, 0.12f, 0.18f, 0.92f);
+        contentBg.raycastTarget = false;
+
+        ApplyPanelShadow(content);
 
         // Başlık
         GameObject titleObj = new GameObject("Title");
@@ -320,6 +323,7 @@ public partial class GameManager
         Image closeImg = closeBtnObj.AddComponent<Image>();
         closeImg.color = new Color(0.7f, 0.2f, 0.2f);
         Button closeBtn = closeBtnObj.AddComponent<Button>();
+        ApplyButtonTint(closeBtn, closeImg, closeImg.color);
         RectTransform closeRect = closeBtnObj.GetComponent<RectTransform>();
         closeRect.anchorMin = new Vector2(0.5f, 0);
         closeRect.anchorMax = new Vector2(0.5f, 0);
@@ -357,6 +361,7 @@ public partial class GameManager
         Image img = btnObj.AddComponent<Image>();
         img.color = new Color(0.2f, 0.3f, 0.4f);
         Button btn = btnObj.AddComponent<Button>();
+        ApplyButtonTint(btn, img, img.color);
         RectTransform rect = btnObj.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);

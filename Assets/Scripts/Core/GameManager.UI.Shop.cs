@@ -37,6 +37,8 @@ public partial class GameManager
         Image bg = shopPanel.AddComponent<Image>();
         bg.color = new Color(0.04f, 0.06f, 0.1f, 0.97f);
 
+        ApplyPanelShadow(shopPanel);
+
         RectTransform rect = shopPanel.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -77,6 +79,7 @@ public partial class GameManager
         Button closeBtn = closeBtnObj.AddComponent<Button>();
         Image closeImg = closeBtnObj.AddComponent<Image>();
         closeImg.color = new Color(0.7f, 0.2f, 0.2f, 0.9f);
+        ApplyButtonTint(closeBtn, closeImg, closeImg.color);
         RectTransform closeBtnRect = closeBtnObj.GetComponent<RectTransform>();
         closeBtnRect.anchorMin = new Vector2(1, 0.5f);
         closeBtnRect.anchorMax = new Vector2(1, 0.5f);
@@ -167,7 +170,7 @@ public partial class GameManager
         tabBarRect.anchorMax = new Vector2(1, 1);
         tabBarRect.pivot = new Vector2(0.5f, 1);
         tabBarRect.anchoredPosition = new Vector2(0, -50);
-        tabBarRect.sizeDelta = new Vector2(0, 35);
+        tabBarRect.sizeDelta = new Vector2(0, 40);
 
         for (int i = 0; i < SHOP_TAB_KEYS.Length; i++)
         {
@@ -177,12 +180,13 @@ public partial class GameManager
             Button btn = tabBtn.AddComponent<Button>();
             Image btnImg = tabBtn.AddComponent<Image>();
             btnImg.color = (i == currentShopTab) ? new Color(0.15f, 0.3f, 0.5f) : new Color(0.1f, 0.12f, 0.18f);
+            ApplyButtonTint(btn, btnImg, btnImg.color);
 
             TextMeshProUGUI txt = CreateStretchedLabel(
                 tabBtn.transform,
                 "Text",
                 T(SHOP_TAB_KEYS[i], SHOP_TAB_FALLBACKS[i]),
-                14,
+                15,
                 (i == currentShopTab) ? Color.white : new Color(0.6f, 0.6f, 0.6f));
             txt.fontStyle = FontStyles.Bold;
 
@@ -208,7 +212,11 @@ public partial class GameManager
                 Image tabImg = tab.GetComponent<Image>();
                 TextMeshProUGUI tabTxt = tab.GetComponentInChildren<TextMeshProUGUI>();
                 if (tabImg != null)
+                {
                     tabImg.color = (i == currentShopTab) ? new Color(0.15f, 0.3f, 0.5f) : new Color(0.1f, 0.12f, 0.18f);
+                    Button tabBtn = tab.GetComponent<Button>();
+                    if (tabBtn != null) ApplyButtonTint(tabBtn, tabImg, tabImg.color);
+                }
                 if (tabTxt != null)
                     tabTxt.color = (i == currentShopTab) ? Color.white : new Color(0.6f, 0.6f, 0.6f);
             }
@@ -413,12 +421,12 @@ public partial class GameManager
         else
         {
             // Fallback veriler (Eğer spawner bulunamazsa)
-            fishList.Add(new FishType { name = "Sardalya", score = 10, spawnWeight = 35 });
-            fishList.Add(new FishType { name = "Çipura", score = 25, spawnWeight = 25 });
-            fishList.Add(new FishType { name = "Levrek", score = 50, spawnWeight = 20 });
-            fishList.Add(new FishType { name = "Palamut", score = 100, spawnWeight = 12 });
-            fishList.Add(new FishType { name = "Orkinos", score = 250, spawnWeight = 6 });
-            fishList.Add(new FishType { name = "Köpekbalığı", score = 500, spawnWeight = 2 });
+            fishList.Add(new FishType { name = "Sardalya", nameTR = "Sardalya", nameEN = "Sardine", localizationKey = "fish.sardine", score = 10, spawnWeight = 35 });
+            fishList.Add(new FishType { name = "Çipura", nameTR = "Çipura", nameEN = "Bream", localizationKey = "fish.bream", score = 25, spawnWeight = 25 });
+            fishList.Add(new FishType { name = "Levrek", nameTR = "Levrek", nameEN = "Sea Bass", localizationKey = "fish.seabass", score = 50, spawnWeight = 20 });
+            fishList.Add(new FishType { name = "Palamut", nameTR = "Palamut", nameEN = "Bonito", localizationKey = "fish.bonito", score = 100, spawnWeight = 12 });
+            fishList.Add(new FishType { name = "Orkinos", nameTR = "Orkinos", nameEN = "Tuna", localizationKey = "fish.tuna", score = 250, spawnWeight = 6 });
+            fishList.Add(new FishType { name = "Köpekbalığı", nameTR = "Köpekbalığı", nameEN = "Shark", localizationKey = "fish.shark", score = 500, spawnWeight = 2 });
         }
 
         // Fiyata göre sırala (Küçükten büyüğe)
@@ -466,25 +474,15 @@ public partial class GameManager
             iconLayout.minHeight = 35;
             iconLayout.preferredHeight = 35;
 
-            if (fish.sprite != null)
-            {
-                Image iconImg = iconObj.AddComponent<Image>();
-                iconImg.sprite = fish.sprite;
-                iconImg.preserveAspect = true;
-            }
-            else
-            {
-                TextMeshProUGUI iconTxt = iconObj.AddComponent<TextMeshProUGUI>();
-                iconTxt.text = "><>";
-                iconTxt.fontSize = 24;
-                iconTxt.alignment = TextAlignmentOptions.Center;
-            }
+            Image iconImg = iconObj.AddComponent<Image>();
+            iconImg.sprite = fish.sprite != null ? fish.sprite : FishSpawner.GetDefaultSprite();
+            iconImg.preserveAspect = true;
 
             // İsim
             GameObject nameObj = new GameObject("Name");
             nameObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI nameTxt = nameObj.AddComponent<TextMeshProUGUI>();
-            nameTxt.text = fish.name;
+            nameTxt.text = fish.GetDisplayName();
             nameTxt.fontSize = 14;
             nameTxt.fontStyle = FontStyles.Bold;
             nameTxt.alignment = TextAlignmentOptions.Left;

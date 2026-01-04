@@ -49,6 +49,14 @@ public partial class GameManager
         contentRect.anchoredPosition = Vector2.zero;
         contentRect.sizeDelta = new Vector2(500, 450);
 
+        // Subtle card background behind menu items (non-raycast)
+        Image contentBg = content.AddComponent<Image>();
+        contentBg.color = new Color(0.05f, 0.08f, 0.12f, 0.78f);
+        contentBg.raycastTarget = false;
+
+        // Rounded + soft shadow (more modern than a hard outline)
+        ApplyPanelShadow(content);
+
         // Oyun Başlığı
         GameObject titleObj = new GameObject("Title");
         titleObj.transform.SetParent(content.transform, false);
@@ -128,15 +136,13 @@ public partial class GameManager
 
         Button btn = btnObj.AddComponent<Button>();
 
-        // Hover efekti
-        ColorBlock colors = btn.colors;
-        colors.highlightedColor = new Color(color.r + 0.1f, color.g + 0.1f, color.b + 0.1f);
-        colors.pressedColor = new Color(color.r - 0.1f, color.g - 0.1f, color.b - 0.1f);
-        btn.colors = colors;
+        // Cleaner, consistent tinting (avoid overshooting 0..1)
+        ApplyButtonTint(btn, btnImg, color);
 
-        Outline btnOutline = btnObj.AddComponent<Outline>();
-        btnOutline.effectColor = new Color(1f, 1f, 1f, 0.2f);
-        btnOutline.effectDistance = new Vector2(2, -2);
+        Shadow btnShadow = btnObj.AddComponent<Shadow>();
+        btnShadow.effectColor = new Color(0f, 0f, 0f, 0.35f);
+        btnShadow.effectDistance = new Vector2(0, -3);
+        btnShadow.useGraphicAlpha = true;
 
         RectTransform btnRect = btnObj.GetComponent<RectTransform>();
         btnRect.anchorMin = new Vector2(0.5f, 1);
@@ -172,9 +178,8 @@ public partial class GameManager
         rect.anchoredPosition = Vector2.zero;
         rect.sizeDelta = new Vector2(400, 200);
 
-        Outline outline = confirmPanel.AddComponent<Outline>();
-        outline.effectColor = new Color(1f, 0.5f, 0.2f, 0.6f);
-        outline.effectDistance = new Vector2(3, -3);
+        // Confirm panel: rounded + soft shadow
+        ApplyPanelShadow(confirmPanel);
 
         // Uyarı metni
         GameObject warnObj = new GameObject("Warning");

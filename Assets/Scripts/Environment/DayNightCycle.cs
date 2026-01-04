@@ -18,14 +18,14 @@ public class DayNightCycle : MonoBehaviour
     public Camera mainCamera;
     public Gradient skyColor; // Günün saatine göre gökyüzü rengi
     public Gradient ambientLightColor; // Ortam ışığı rengi (RenderSettings)
-    
+
     [Header("Su Rengi Etkileşimi")]
     public bool controlWaterColor = true;
     public Color waterDayTop = new Color(0f, 0.6f, 0.9f, 0.8f);
     public Color waterNightTop = new Color(0f, 0.1f, 0.3f, 0.8f);
     public Color waterDayBottom = new Color(0f, 0.1f, 0.3f, 1f);
     public Color waterNightBottom = new Color(0f, 0.05f, 0.1f, 1f);
-    
+
     [Header("Zoom Ayarları")]
     public float referenceCameraSize = 5f; // Zoom hesaplaması için baz alınan boyut
 
@@ -42,12 +42,12 @@ public class DayNightCycle : MonoBehaviour
 
     void Start()
     {
-        if (sun != null) 
+        if (sun != null)
         {
             sunRenderer = sun.GetComponent<SpriteRenderer>();
             initialSunScale = sun.localScale;
         }
-        if (moon != null) 
+        if (moon != null)
         {
             moonRenderer = moon.GetComponent<SpriteRenderer>();
             initialMoonScale = moon.localScale;
@@ -85,7 +85,7 @@ public class DayNightCycle : MonoBehaviour
         {
             mainCamera.backgroundColor = skyColor.Evaluate(timeOfDay);
         }
-        
+
         // Ortam ışığını güncelle
         if (ambientLightColor != null)
         {
@@ -98,7 +98,7 @@ public class DayNightCycle : MonoBehaviour
         // Kamera ve Zoom bilgileri
         Vector3 cameraPos = (mainCamera != null) ? mainCamera.transform.position : transform.position;
         float zoomFactor = (mainCamera != null) ? mainCamera.orthographicSize / referenceCameraSize : 1f;
-        
+
         // WaveManager referansını güncelle (Performans için zamanlayıcı ile)
         if (waveManager == null)
         {
@@ -109,7 +109,7 @@ public class DayNightCycle : MonoBehaviour
                 waveManagerCheckTimer = 1f; // Her saniye kontrol et
             }
         }
-        
+
         float waterLevel = waterSurfaceY;
         if (waveManager != null)
         {
@@ -128,7 +128,7 @@ public class DayNightCycle : MonoBehaviour
 
         // Güneş ve Ay pozisyonlarını güncelle
         float angle = (timeOfDay * 360f) - 90f; // 0.0'da -90 derece (aşağıda)
-        
+
         UpdateCelestialBody(sun, sunRenderer, angle, initialSunScale, orbitCenter, currentOrbitRadius, zoomFactor, waterLevel);
         UpdateCelestialBody(moon, moonRenderer, angle + 180f, initialMoonScale, orbitCenter, currentOrbitRadius, zoomFactor, waterLevel);
     }
@@ -138,9 +138,9 @@ public class DayNightCycle : MonoBehaviour
         if (!controlWaterColor || waveManager == null) return;
 
         // Güneşin yüksekliğine veya zamana göre bir "aydınlık" faktörü hesapla
-        float sunHeight = Mathf.Sin((timeOfDay * 360f - 90f) * Mathf.Deg2Rad); 
-        float lightFactor = Mathf.Clamp01((sunHeight + 1f) / 2f); 
-        
+        float sunHeight = Mathf.Sin((timeOfDay * 360f - 90f) * Mathf.Deg2Rad);
+        float lightFactor = Mathf.Clamp01((sunHeight + 1f) / 2f);
+
         waveManager.topColor = Color.Lerp(waterNightTop, waterDayTop, lightFactor);
         waveManager.bottomColor = Color.Lerp(waterNightBottom, waterDayBottom, lightFactor);
     }
@@ -150,12 +150,12 @@ public class DayNightCycle : MonoBehaviour
         if (body == null) return;
 
         float rad = angleDeg * Mathf.Deg2Rad;
-        
+
         // Pozisyon hesapla
         Vector3 pos = orbitCenter + new Vector3(Mathf.Cos(rad) * currentRadius.x, Mathf.Sin(rad) * currentRadius.y, 0);
         pos.z = transform.position.z; // Derinliği koru
         body.position = pos;
-        
+
         // Boyutu zoom oranında büyüt
         body.localScale = initialScale * zoomFactor;
 
@@ -168,12 +168,12 @@ public class DayNightCycle : MonoBehaviour
         else
         {
             if (!body.gameObject.activeSelf) body.gameObject.SetActive(true);
-            
+
             // Su yüzeyine yaklaşınca fade out yap
             float distToWater = pos.y - absoluteWaterLevel;
             float fadeRange = 2f * zoomFactor; // Fade mesafesi de zoom ile ölçeklensin
             float alpha = Mathf.Clamp01(distToWater / fadeRange);
-            
+
             if (sr != null)
             {
                 Color c = sr.color;
@@ -205,7 +205,7 @@ public class DayNightCycle : MonoBehaviour
         }
         else if (WaveManager.instance != null) // Editörde instance varsa
         {
-             waterLevel = WaveManager.instance.transform.position.y + WaveManager.instance.offset;
+            waterLevel = WaveManager.instance.transform.position.y + WaveManager.instance.offset;
         }
 
         Vector3 orbitCenter = new Vector3(cameraPos.x, waterLevel + horizonOffset, 0f);
@@ -213,11 +213,11 @@ public class DayNightCycle : MonoBehaviour
         // Yörünge Yarıçapı
         float radiusX = orbitRadius.x * currentZoom;
         float radiusY = orbitRadius.y * currentZoom;
-        
+
         // Yörüngeyi çiz
         Gizmos.color = new Color(1f, 1f, 0f, 0.3f);
         Vector3 prevPos = orbitCenter + new Vector3(radiusX, 0, 0); // Angle 0 (Right)
-        
+
         int segments = 64;
         for (int i = 1; i <= segments; i++)
         {
@@ -236,7 +236,7 @@ public class DayNightCycle : MonoBehaviour
         float angle = (timeOfDay * 360f) - 90f;
         float rad = angle * Mathf.Deg2Rad;
         Vector3 sunPos = orbitCenter + new Vector3(Mathf.Cos(rad) * radiusX, Mathf.Sin(rad) * radiusY, 0);
-        
+
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(sunPos, 1f * currentZoom);
         Gizmos.DrawLine(orbitCenter, sunPos);

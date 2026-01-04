@@ -19,7 +19,7 @@ public class WaveManager : MonoBehaviour
     public float detailAmplitude = 0.2f;
     public float detailLength = 1f;
     public float detailSpeed = 2f;
-    
+
     [Header("Hava Durumu Etkisi")]
     public float weatherIntensity = 1f; // WeatherSystem tarafından güncellenir
     private float baseAmplitude;
@@ -43,7 +43,7 @@ public class WaveManager : MonoBehaviour
     private Color lastTopColor;
     private Color lastBottomColor;
     private bool colorsDirty = true;
-    
+
     // Optimizasyon için önbellek
     private int currentResolution;
 
@@ -81,11 +81,11 @@ public class WaveManager : MonoBehaviour
         meshFilter = GetComponent<MeshFilter>();
         meshRenderer = GetComponent<MeshRenderer>();
         mainCamera = Camera.main;
-        
+
         // Temel değerleri kaydet
         baseAmplitude = amplitude;
         baseDetailAmplitude = detailAmplitude;
-        
+
         mesh = new Mesh();
         mesh.name = "WaterMesh";
         mesh.MarkDynamic(); // Sık güncellemeler için optimize et
@@ -102,7 +102,7 @@ public class WaveManager : MonoBehaviour
 
         InitializeMeshArrays();
     }
-    
+
     public void SetWeatherIntensity(float intensity)
     {
         weatherIntensity = intensity;
@@ -277,7 +277,7 @@ public class WaveManager : MonoBehaviour
     {
         float y = transform.position.y + offset;
         float t = Application.isPlaying ? Time.time : 0f;
-        
+
         // Ana dalga
         y += amplitude * Mathf.Sin(x / length + t * speed);
 

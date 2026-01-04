@@ -24,16 +24,16 @@ public class CameraFollow : MonoBehaviour
     [Header("Sınırlar")]
     public bool enableLimits = true;
     public Vector2 minPosition = new Vector2(-50, -50); // Sınırlar genişletildi
-    public Vector2 maxPosition = new Vector2(50, 20); 
+    public Vector2 maxPosition = new Vector2(50, 20);
 
     // Shake değişkenleri
     private float shakeDuration = 0f;
     private float shakeMagnitude = 0.7f;
     private float dampingSpeed = 1.0f;
-    
+
     private Vector3 currentVelocity; // Hareket için hız değişkeni
     private float zoomVelocity;      // Zoom için hız değişkeni
-    
+
     private Camera cam;
 
     private float nextTargetSearchTime = 0f;
@@ -81,7 +81,7 @@ public class CameraFollow : MonoBehaviour
         if (secondaryTarget != null)
         {
             float distance = Vector3.Distance(target.position, secondaryTarget.position);
-            
+
             // İki hedefi de kapsayacak zoom miktarını hesapla
             float requiredSize = (distance / 2f) + zoomPadding;
             targetZoom = Mathf.Clamp(requiredSize, minZoom, maxZoom);
@@ -91,7 +91,7 @@ public class CameraFollow : MonoBehaviour
             if (requiredSize > maxZoom)
             {
                 targetPos = secondaryTarget.position;
-                targetPos.y += secondaryTargetOffset; 
+                targetPos.y += secondaryTargetOffset;
             }
             else
             {
@@ -142,7 +142,7 @@ public class CameraFollow : MonoBehaviour
         {
             smoothedPosition = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, smoothSpeed);
         }
-        
+
         // Shake Efekti
         if (shakeDuration > 0)
         {
