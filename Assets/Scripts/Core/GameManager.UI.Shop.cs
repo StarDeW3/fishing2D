@@ -20,6 +20,8 @@ public partial class GameManager
         // Shop açıkken oyunu durdur (PauseMenu gibi ayrı bir kaynak)
         SetPause(PauseSource.Shop, isActive);
 
+        DevLog.Info("GameManager", $"Shop {(isActive ? "opened" : "closed")} (tab={currentShopTab})");
+
         if (isActive) UpdateShopUI();
     }
 
@@ -29,6 +31,8 @@ public partial class GameManager
 
         Transform canvasTr = GetCanvasTransform();
         if (canvasTr == null) return;
+
+        DevLog.Info("GameManager", "CreateShopUI");
 
         shopPanel = new GameObject("ShopPanel");
         shopPanel.transform.SetParent(canvasTr, false);
@@ -193,6 +197,7 @@ public partial class GameManager
             btn.onClick.AddListener(() =>
             {
                 currentShopTab = tabIndex;
+                DevLog.Info("GameManager", $"Shop tab changed -> {currentShopTab}");
                 UpdateShopUI();
             });
         }
@@ -392,8 +397,13 @@ public partial class GameManager
                 {
                     if (UpgradeManager.instance.TryUpgrade(upgCopy.type))
                     {
+                        DevLog.Info("GameManager", $"Shop buy success (upgrade={upgCopy.type})");
                         UpdateShopUI();
                         if (SoundManager.instance != null) SoundManager.instance.PlaySFX(SoundManager.instance.catchSound);
+                    }
+                    else
+                    {
+                        DevLog.Info("GameManager", $"Shop buy failed (upgrade={upgCopy.type})");
                     }
                 });
             }

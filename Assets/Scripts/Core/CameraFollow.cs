@@ -46,12 +46,16 @@ public class CameraFollow : MonoBehaviour
 
     private Camera cam;
 
+    private const string LOG_CAT = "CameraFollow";
+
     private float nextTargetSearchTime = 0f;
     private const float TARGET_SEARCH_INTERVAL = 0.5f;
 
     void Awake()
     {
         cam = GetComponent<Camera>();
+
+        DevLog.Info(LOG_CAT, "Awake");
     }
 
     void Start()
@@ -59,6 +63,8 @@ public class CameraFollow : MonoBehaviour
         // Eğer hedef atanmamışsa otomatik bul
         if (target == null)
             TryAcquireTarget();
+
+        DevLog.Info(LOG_CAT, $"Start (target={(target != null ? target.name : "null")}, secondary={(secondaryTarget != null ? secondaryTarget.name : "null")})");
     }
 
     void LateUpdate()
@@ -79,7 +85,11 @@ public class CameraFollow : MonoBehaviour
 
         BoatController boat = BoatController.instance;
         if (boat == null) boat = FindFirstObjectByType<BoatController>();
-        if (boat != null) target = boat.transform;
+        if (boat != null)
+        {
+            target = boat.transform;
+            DevLog.Info(LOG_CAT, $"Acquired target: {target.name}");
+        }
     }
 
     void MoveAndZoomCamera()
@@ -179,6 +189,8 @@ public class CameraFollow : MonoBehaviour
             shakeDuration = 0f;
             shakeMagnitude = 0f;
         }
+
+        DevLog.Info(LOG_CAT, $"TriggerShake (duration={duration:0.##}, magnitude={magnitude:0.##}, appliedMagnitude={shakeMagnitude:0.##})");
     }
 
     void OnDrawGizmos()
@@ -245,10 +257,14 @@ public class CameraFollow : MonoBehaviour
     public void SetSecondaryTarget(Transform target)
     {
         secondaryTarget = target;
+
+        DevLog.Info(LOG_CAT, $"SetSecondaryTarget -> {(secondaryTarget != null ? secondaryTarget.name : "null")}");
     }
 
     public void ClearSecondaryTarget()
     {
         secondaryTarget = null;
+
+        DevLog.Info(LOG_CAT, "ClearSecondaryTarget");
     }
 }

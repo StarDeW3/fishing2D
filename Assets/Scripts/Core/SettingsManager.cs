@@ -11,6 +11,8 @@ public class SettingsManager : MonoBehaviour
 {
     public static SettingsManager instance;
 
+    private const string LOG_CAT = "SettingsManager";
+
     private const string PREF_MUSIC_VOLUME = "Setting_MusicVolume";
     private const string PREF_SFX_VOLUME = "Setting_SfxVolume";
     private const string PREF_MUTED = "Setting_Muted";
@@ -46,6 +48,8 @@ public class SettingsManager : MonoBehaviour
         instance = this;
         DontDestroyOnLoad(gameObject);
 
+        DevLog.Info(LOG_CAT, "Awake");
+
         Load();
     }
 
@@ -60,6 +64,8 @@ public class SettingsManager : MonoBehaviour
         language = (GameLanguage)PlayerPrefs.GetInt(PREF_LANGUAGE, (int)language);
 
         ClampAll();
+
+        DevLog.Info(LOG_CAT, $"Load (music={musicVolume:0.00}, sfx={sfxVolume:0.00}, muted={muted}, shake={shakeIntensity:0.00}, showRarity={showRarityOnCatch}, lang={language})");
     }
 
     private void ClampAll()
@@ -92,47 +98,60 @@ public class SettingsManager : MonoBehaviour
 
     public void SetMusicVolume(float value)
     {
+        float prev = musicVolume;
         musicVolume = Mathf.Clamp01(value);
         Save();
         NotifyChanged();
+        DevLog.Info(LOG_CAT, $"SetMusicVolume ({prev:0.00} -> {musicVolume:0.00})");
     }
 
     public void SetSfxVolume(float value)
     {
+        float prev = sfxVolume;
         sfxVolume = Mathf.Clamp01(value);
         Save();
         NotifyChanged();
+        DevLog.Info(LOG_CAT, $"SetSfxVolume ({prev:0.00} -> {sfxVolume:0.00})");
     }
 
     public void SetMuted(bool value)
     {
+        bool prev = muted;
         muted = value;
         Save();
         NotifyChanged();
+        DevLog.Info(LOG_CAT, $"SetMuted ({prev} -> {muted})");
     }
 
     public void SetShakeIntensity(float value)
     {
+        float prev = shakeIntensity;
         shakeIntensity = Mathf.Clamp01(value);
         Save();
         NotifyChanged();
+        DevLog.Info(LOG_CAT, $"SetShakeIntensity ({prev:0.00} -> {shakeIntensity:0.00})");
     }
 
     public void SetShowRarityOnCatch(bool value)
     {
+        bool prev = showRarityOnCatch;
         showRarityOnCatch = value;
         Save();
         NotifyChanged();
+        DevLog.Info(LOG_CAT, $"SetShowRarityOnCatch ({prev} -> {showRarityOnCatch})");
     }
 
     public void SetLanguage(GameLanguage value)
     {
+        GameLanguage prev = language;
         language = value;
         if (!Enum.IsDefined(typeof(GameLanguage), language))
             language = GameLanguage.Turkish;
 
         Save();
         NotifyChanged();
+
+        DevLog.Info(LOG_CAT, $"SetLanguage ({prev} -> {language})");
     }
 
     public string L(string turkish, string english)

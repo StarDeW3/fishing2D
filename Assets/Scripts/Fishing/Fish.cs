@@ -28,10 +28,29 @@ public class Fish : MonoBehaviour
     private WaitForSeconds turnWait; // Optimization: Cache wait object
     private Coroutine swimRoutine;
     private System.Action<Fish> returnToPoolAction;
+    private Transform defaultParent;
+
+    private bool limitMovementBounds;
+    private Vector2 minMoveBounds;
+    private Vector2 maxMoveBounds;
+
+    private const string LOG_CAT = "Fish";
 
     public void SetPool(System.Action<Fish> returnAction)
     {
         returnToPoolAction = returnAction;
+    }
+
+    public void SetDefaultParent(Transform parent)
+    {
+        defaultParent = parent;
+    }
+
+    public void SetMovementBounds(bool enabled, Vector2 min, Vector2 max)
+    {
+        limitMovementBounds = enabled;
+        minMoveBounds = min;
+        maxMoveBounds = max;
     }
 
     void Awake()
@@ -40,6 +59,8 @@ public class Fish : MonoBehaviour
         col = GetComponent<Collider2D>();
         sr = GetComponent<SpriteRenderer>();
         t = transform;
+
+        DevLog.Info(LOG_CAT, $"Awake ({name})");
     }
 
     void OnEnable()
@@ -61,7 +82,10 @@ public class Fish : MonoBehaviour
         if (col != null) col.enabled = true;
         if (t != null)
         {
-            t.SetParent(null);
+            if (defaultParent != null)
+                t.SetParent(defaultParent, true);
+            else
+                t.SetParent(null);
             baseScale = 1f;
             t.localScale = Vector3.one; // Reset scale
         }
@@ -105,6 +129,61 @@ public class Fish : MonoBehaviour
         if (isCaught) return;
 
         rb.linearVelocity = new Vector2(speed * direction, 0f);
+
+        if (limitMovementBounds)
+            EnforceMovementBounds();
+    }
+
+    private void EnforceMovementBounds()
+    {
+        if (rb == null) return;
+
+        float minX = Mathf.Min(minMoveBounds.x, maxMoveBounds.x);
+        float maxX = Mathf.Max(minMoveBounds.x, maxMoveBounds.x);
+        float minY = Mathf.Min(minMoveBounds.y, maxMoveBounds.y);
+        float maxY = Mathf.Max(minMoveBounds.y, maxMoveBounds.y);
+
+        Vector2 pos = rb.position;
+        Vector2 vel = rb.linearVelocity;
+        bool flipped = false;
+
+        if (pos.x < minX)
+        {
+            pos.x = minX;
+            if (vel.x < 0f) vel.x = 0f;
+            if (direction < 0f)
+            {
+                direction = 1f;
+                flipped = true;
+            }
+        }
+        else if (pos.x > maxX)
+        {
+            pos.x = maxX;
+            if (vel.x > 0f) vel.x = 0f;
+            if (direction > 0f)
+            {
+                direction = -1f;
+                flipped = true;
+            }
+        }
+
+        if (pos.y < minY)
+        {
+            pos.y = minY;
+            if (vel.y < 0f) vel.y = 0f;
+        }
+        else if (pos.y > maxY)
+        {
+            pos.y = maxY;
+            if (vel.y > 0f) vel.y = 0f;
+        }
+
+        if (flipped)
+            UpdateFacing();
+
+        rb.position = pos;
+        rb.linearVelocity = new Vector2(vel.x, 0f);
     }
 
     void ChangeDirection()
@@ -126,6 +205,8 @@ public class Fish : MonoBehaviour
     {
         if (this == null || rb == null) return;
 
+        DevLog.Info(LOG_CAT, $"Catch (fishName='{fishName}', difficulty={difficulty:0.##}, rarity='{rarityLabel}')");
+
         isCaught = true;
         if (swimRoutine != null) StopCoroutine(swimRoutine); // Stop swimming logic
 
@@ -143,7 +224,13 @@ public class Fish : MonoBehaviour
     {
         if (this == null || rb == null) return;
 
-        t.SetParent(null); // Kancadan ayrıl
+        DevLog.Info(LOG_CAT, $"Escape (fishName='{fishName}', difficulty={difficulty:0.##})");
+
+        // Kancadan ayrıl ve mümkünse hiyerarşi container'ına geri dön.
+        if (defaultParent != null)
+            t.SetParent(defaultParent, true);
+        else
+            t.SetParent(null);
         isCaught = false;
         rb.bodyType = RigidbodyType2D.Dynamic;
 
@@ -162,6 +249,7 @@ public class Fish : MonoBehaviour
 
     public void Despawn(float delay = 0f)
     {
+        DevLog.Info(LOG_CAT, $"Despawn requested (delay={delay:0.##}, fishName='{fishName}')");
         if (delay > 0)
         {
             StartCoroutine(DespawnRoutine(delay));
@@ -182,10 +270,12 @@ public class Fish : MonoBehaviour
     {
         if (returnToPoolAction != null)
         {
+            DevLog.Info(LOG_CAT, $"ReturnToPool (fishName='{fishName}')");
             returnToPoolAction.Invoke(this);
         }
         else
         {
+            DevLog.Warn(LOG_CAT, $"No pool set -> Destroy (fishName='{fishName}')");
             Destroy(gameObject);
         }
     }

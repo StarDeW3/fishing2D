@@ -19,6 +19,8 @@ public class LocalizationManager : MonoBehaviour
 {
     public static LocalizationManager instance;
 
+    private const string LOG_CAT = "LocalizationManager";
+
     public event Action LanguageChanged;
 
     private readonly Dictionary<string, string> table = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -37,9 +39,13 @@ public class LocalizationManager : MonoBehaviour
         instance = this;
         DontDestroyOnLoad(gameObject);
 
+        DevLog.Info(LOG_CAT, "Awake");
+
         // Prefer SettingsManager language if available.
         if (SettingsManager.instance != null)
             currentLanguage = SettingsManager.instance.Language;
+
+        DevLog.Info(LOG_CAT, $"Initial language = {currentLanguage}");
 
         ReloadTable();
     }
@@ -47,6 +53,8 @@ public class LocalizationManager : MonoBehaviour
     private void OnEnable()
     {
         TrySubscribeToSettings();
+
+        DevLog.Info(LOG_CAT, "OnEnable");
     }
 
     private void Start()
@@ -59,12 +67,16 @@ public class LocalizationManager : MonoBehaviour
             currentLanguage = SettingsManager.instance.Language;
             ReloadTable();
             LanguageChanged?.Invoke();
+
+            DevLog.Info(LOG_CAT, $"Start resync -> language = {currentLanguage}");
         }
     }
 
     private void OnDisable()
     {
         TryUnsubscribeFromSettings();
+
+        DevLog.Info(LOG_CAT, "OnDisable");
     }
 
     private void TrySubscribeToSettings()
@@ -75,6 +87,8 @@ public class LocalizationManager : MonoBehaviour
         SettingsManager.instance.SettingsChanged -= OnSettingsChanged;
         SettingsManager.instance.SettingsChanged += OnSettingsChanged;
         isSubscribedToSettings = true;
+
+        DevLog.Info(LOG_CAT, "Subscribed to SettingsManager.SettingsChanged");
     }
 
     private void TryUnsubscribeFromSettings()
@@ -83,6 +97,8 @@ public class LocalizationManager : MonoBehaviour
         if (SettingsManager.instance != null)
             SettingsManager.instance.SettingsChanged -= OnSettingsChanged;
         isSubscribedToSettings = false;
+
+        DevLog.Info(LOG_CAT, "Unsubscribed from SettingsManager.SettingsChanged");
     }
 
     private void OnSettingsChanged()
@@ -95,6 +111,8 @@ public class LocalizationManager : MonoBehaviour
         currentLanguage = next;
         ReloadTable();
         LanguageChanged?.Invoke();
+
+        DevLog.Info(LOG_CAT, $"Language changed -> {currentLanguage}");
     }
 
     private string GetResourceNameForLanguage(GameLanguage language)
@@ -111,7 +129,7 @@ public class LocalizationManager : MonoBehaviour
 
         if (textAsset == null)
         {
-            Debug.LogWarning($"LocalizationManager: Missing resource '{resourceName}'.");
+            DevLog.Warn(LOG_CAT, $"Missing resource '{resourceName}'.");
             return;
         }
 
@@ -122,7 +140,7 @@ public class LocalizationManager : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogError($"LocalizationManager: Failed to parse '{resourceName}': {ex.Message}");
+            DevLog.Error(LOG_CAT, $"Failed to parse '{resourceName}': {ex.Message}");
             return;
         }
 
@@ -134,6 +152,8 @@ public class LocalizationManager : MonoBehaviour
             if (string.IsNullOrEmpty(e.key)) continue;
             table[e.key] = e.value ?? string.Empty;
         }
+
+        DevLog.Info(LOG_CAT, $"ReloadTable ok ({resourceName}, entries={table.Count})");
     }
 
     public static string T(string key, string fallback = null)

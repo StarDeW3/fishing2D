@@ -9,6 +9,8 @@ public class LocalizedTMPText : MonoBehaviour
 
     private TMP_Text tmp;
 
+    private const string LOG_CAT = "LocalizedTMPText";
+
     private void Awake()
     {
         tmp = GetComponent<TMP_Text>();
@@ -30,15 +32,23 @@ public class LocalizedTMPText : MonoBehaviour
 
     public void SetKey(string newKey, string newFallback = null)
     {
+        string prevKey = key;
         key = newKey;
         if (newFallback != null) fallback = newFallback;
         Refresh();
+
+        DevLog.Info(LOG_CAT, $"SetKey ({prevKey} -> {key}) on '{name}'");
     }
 
     private void Refresh()
     {
         if (tmp == null) tmp = GetComponent<TMP_Text>();
         if (tmp == null) return;
+
+        if (string.IsNullOrEmpty(key))
+        {
+            DevLog.Warn(LOG_CAT, $"Empty key on '{name}' (using fallback)");
+        }
 
         tmp.text = LocalizationManager.T(key, fallback);
     }

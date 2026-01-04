@@ -354,6 +354,8 @@ public class Hook : MonoBehaviour
         targetRodTip = fishingRod.rodTip;
         float distance = Vector3.Distance(transform.position, targetRodTip.position);
 
+        DevLog.Info("Fishing", $"StartMiniGame fish='{(fish != null ? fish.fishName : "<null>")}' difficulty={(fish != null ? fish.difficulty : 0f):0.00} distance={distance:0.0}m");
+
         // Balığı hemen kancaya tak (Görsel olarak beraber hareket etsinler)
         fish.Catch(transform);
 
@@ -384,7 +386,7 @@ public class Hook : MonoBehaviour
     {
         isBusy = false;
         caughtFish = fish;
-        Debug.Log("Balık Yakalandı!");
+        DevLog.Info("Fishing", "MiniGame WIN (fish caught)");
 
         if (fishingRod != null)
         {
@@ -400,7 +402,7 @@ public class Hook : MonoBehaviour
     void OnMiniGameLose(Fish fish)
     {
         isBusy = false;
-        Debug.Log("Balık Kaçtı!");
+        DevLog.Info("Fishing", "MiniGame LOSE (fish escaped)");
 
         if (fish != null) fish.Escape();
 

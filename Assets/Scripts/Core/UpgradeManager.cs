@@ -47,6 +47,8 @@ public class UpgradeManager : MonoBehaviour
 {
     public static UpgradeManager instance;
 
+    private const string LOG_CAT = "UpgradeManager";
+
     // Economy tuning: applied to all fish payouts (before StorageCapacity bonus).
     // Kept here so UI (Fish Market) and gameplay use the same multiplier.
     public const float BASE_FISH_SELL_MULTIPLIER = 1.5f;
@@ -66,8 +68,12 @@ public class UpgradeManager : MonoBehaviour
 
         instance = this;
 
+        DevLog.Info(LOG_CAT, "Awake");
+
         InitializeUpgrades();
         LoadLevels();
+
+        DevLog.Info(LOG_CAT, $"Initialized (defs={upgrades?.Count ?? 0})");
     }
 
     void InitializeUpgrades()
@@ -210,6 +216,8 @@ public class UpgradeManager : MonoBehaviour
             int level = PlayerPrefs.GetInt("Upgrade_" + upg.type.ToString(), 0);
             currentLevels[upg.type] = level;
         }
+
+        DevLog.Info(LOG_CAT, $"LoadLevels (levels={currentLevels.Count})");
     }
 
     public float GetValue(UpgradeType type)
@@ -242,7 +250,11 @@ public class UpgradeManager : MonoBehaviour
     public bool TryUpgrade(UpgradeType type)
     {
         int cost = GetCost(type);
-        if (cost < 0) return false; // Max seviye
+        if (cost < 0)
+        {
+            DevLog.Info(LOG_CAT, $"TryUpgrade blocked (type={type}, reason=max-level)");
+            return false; // Max seviye
+        }
 
         if (GameManager.instance.SpendMoney(cost))
         {
@@ -251,7 +263,7 @@ public class UpgradeManager : MonoBehaviour
             PlayerPrefs.SetInt("Upgrade_" + type.ToString(), currentLevels[type]);
             PlayerPrefs.Save();
 
-            Debug.Log($"{type} upgraded to level {currentLevels[type]}");
+            DevLog.Info(LOG_CAT, $"Upgraded (type={type}, level={currentLevels[type]}, cost={cost})");
 
             // Apply any runtime effects immediately.
             if (BoatController.instance != null)
@@ -264,6 +276,8 @@ public class UpgradeManager : MonoBehaviour
 
             return true;
         }
+
+        DevLog.Info(LOG_CAT, $"TryUpgrade blocked (type={type}, reason=insufficient-funds, cost={cost})");
 
         return false;
     }

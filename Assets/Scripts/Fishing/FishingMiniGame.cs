@@ -98,6 +98,8 @@ public class FishingMiniGame : MonoBehaviour
     {
         if (isPlaying) return; // Zaten oyun varsa yenisini başlatma
 
+        DevLog.Info("Minigame", $"StartGame difficulty={difficulty:0.00} distance={distance:0.0}m sprite={(fishSprite != null)}");
+
         // UI referansları yoksa oluşturmayı dene; yine de yoksa crash yerine güvenli şekilde iptal et.
         if (gamePanel == null || fishIcon == null || catchArea == null || progressBar == null)
         {
@@ -214,6 +216,8 @@ public class FishingMiniGame : MonoBehaviour
         if (SoundManager.instance != null)
             SoundManager.instance.SetReelLoop(false);
         reelLoopActive = false;
+
+        DevLog.Info("Minigame", $"EndGame win={win} progress={currentProgress:0.00}");
 
         if (win)
         {

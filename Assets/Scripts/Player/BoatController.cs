@@ -10,6 +10,8 @@ public class BoatController : MonoBehaviour
 {
     public static BoatController instance;
 
+    private const string LOG_CAT = "BoatController";
+
     void Awake()
     {
         if (instance != null && instance != this)
@@ -19,12 +21,19 @@ public class BoatController : MonoBehaviour
         }
 
         instance = this;
+
+        DevLog.Info(LOG_CAT, "Awake");
     }
 
     [Header("Hareket Ayarları")]
     public float moveSpeed = 5f;
     public float baseSpeed = 5f; // Temel hız (upgrade için)
     public bool canMove = true;
+
+    [Header("Hareket Limitleri")]
+    public bool limitMovementX = false;
+    public float minX = -50f;
+    public float maxX = 50f;
 
     [Header("Yüzme Fiziği")]
     public float surfaceOffset = 0.5f;
@@ -44,6 +53,8 @@ public class BoatController : MonoBehaviour
     private bool lastWasInWater = false;
     private float nextWaveManagerSearchTime = 0f;
 
+    private bool lastCanMove;
+
     [Header("Debug")]
     public bool showGizmos = true;
 
@@ -56,12 +67,19 @@ public class BoatController : MonoBehaviour
         waveManager = WaveManager.instance;
         baseSpeed = moveSpeed;
 
+        lastCanMove = canMove;
+
+        DevLog.Info(LOG_CAT, $"Start (moveSpeed={moveSpeed:0.##}, canMove={canMove}, surfaceOffset={surfaceOffset:0.##})");
+
         // Upgrade'den hızı al
         ApplyUpgrades();
     }
 
     public void ApplyUpgrades()
     {
+        float prevMoveSpeed = moveSpeed;
+        float prevStability = stabilityMultiplier;
+
         if (UpgradeManager.instance != null)
         {
             // Tekne hızı
@@ -71,10 +89,19 @@ public class BoatController : MonoBehaviour
             // Tekne stabilitesi (1.0 = normal, 1.75 = çok stabil)
             stabilityMultiplier = UpgradeManager.instance.GetValue(UpgradeType.BoatStability);
         }
+
+        if (!Mathf.Approximately(prevMoveSpeed, moveSpeed) || !Mathf.Approximately(prevStability, stabilityMultiplier))
+            DevLog.Info(LOG_CAT, $"ApplyUpgrades (moveSpeed {prevMoveSpeed:0.##}->{moveSpeed:0.##}, stability {prevStability:0.##}->{stabilityMultiplier:0.##})");
     }
 
     void Update()
     {
+        if (canMove != lastCanMove)
+        {
+            DevLog.Info(LOG_CAT, $"canMove changed ({lastCanMove} -> {canMove})");
+            lastCanMove = canMove;
+        }
+
         if (!canMove)
         {
             horizontalInput = 0f;
@@ -109,6 +136,28 @@ public class BoatController : MonoBehaviour
         if (rb == null)
             rb = GetComponent<Rigidbody2D>();
 
+        // Optional hard movement bounds (X axis)
+        if (limitMovementX && rb != null)
+        {
+            Vector2 p = rb.position;
+            if (p.x < minX)
+            {
+                p.x = minX;
+                rb.position = p;
+                Vector2 v = rb.linearVelocity;
+                if (v.x < 0f) v.x = 0f;
+                rb.linearVelocity = v;
+            }
+            else if (p.x > maxX)
+            {
+                p.x = maxX;
+                rb.position = p;
+                Vector2 v = rb.linearVelocity;
+                if (v.x > 0f) v.x = 0f;
+                rb.linearVelocity = v;
+            }
+        }
+
         if (waveManager == null)
         {
             if (Time.time >= nextWaveManagerSearchTime)
@@ -120,7 +169,7 @@ public class BoatController : MonoBehaviour
             {
                 if (!waveManagerMissingLogged)
                 {
-                    Debug.LogError("WaveManager sahnede bulunamadi! Lutfen 'Water' objesine WaveManager scriptini eklediginden emin ol.");
+                    DevLog.Error(LOG_CAT, "WaveManager sahnede bulunamadi! Lutfen 'Water' objesine WaveManager scriptini eklediginden emin ol.");
                     waveManagerMissingLogged = true;
                 }
 
@@ -274,5 +323,21 @@ public class BoatController : MonoBehaviour
         Handles.color = new Color(1f, 1f, 1f, 0.9f);
         Handles.Label(transform.position + Vector3.up * 1.2f, "Boat");
 #endif
+
+        // Movement bounds gizmos (X limits)
+        if (limitMovementX)
+        {
+            float y = transform.position.y;
+            float h = 8f;
+            Gizmos.color = new Color(1f, 0.85f, 0.2f, 0.8f);
+            Gizmos.DrawLine(new Vector3(minX, y - h, 0f), new Vector3(minX, y + h, 0f));
+            Gizmos.DrawLine(new Vector3(maxX, y - h, 0f), new Vector3(maxX, y + h, 0f));
+
+#if UNITY_EDITOR
+            Handles.color = new Color(1f, 0.85f, 0.2f, 0.95f);
+            Handles.Label(new Vector3(minX, y + h, 0f), "Boat MinX");
+            Handles.Label(new Vector3(maxX, y + h, 0f), "Boat MaxX");
+#endif
+        }
     }
 }

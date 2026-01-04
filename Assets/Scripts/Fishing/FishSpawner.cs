@@ -110,6 +110,19 @@ public class FishSpawner : MonoBehaviour
     public float minY = -10f;
     public float maxY = -2f;
 
+    [Header("Fish Movement Bounds")]
+    [Tooltip("Açıksa, balıklar hareket ederken bu sınırların dışına çıkamaz (clamp + yön çevirme).")]
+    public bool limitFishMovement = true;
+
+    [Tooltip("Açıksa balık hareket sınırı spawn alanı ile aynı olur.")]
+    public bool fishMovementUsesSpawnArea = true;
+
+    [Tooltip("fishMovementUsesSpawnArea kapalıysa kullanılır.")]
+    public float fishMoveMinX = -15f;
+    public float fishMoveMaxX = 15f;
+    public float fishMoveMinY = -10f;
+    public float fishMoveMaxY = -2f;
+
     [Header("Derinlik -> Nadirlik")]
     [Tooltip("Açıksa, balık nadirliği derinliğe göre ağırlıklandırılır. Derin suda Rare/Epic/Legendary daha olası olur.")]
     public bool depthAffectsRarity = true;
@@ -119,6 +132,10 @@ public class FishSpawner : MonoBehaviour
 
     [Tooltip("Bu derinliğin üstünde (m) 'çok derin' kabul edilir (etki maksimuma ulaşır).")]
     public float depthRarityFull = 14f;
+
+    [Header("Depth Rarity Gizmo")]
+    [Tooltip("WaveManager bulunamazsa, derinlik çizgileri için bu yüzey Y değeri kullanılır.")]
+    public float depthGizmoSurfaceFallbackY = 0f;
 
     private float timer;
     private Transform fishContainer;
@@ -219,9 +236,29 @@ public class FishSpawner : MonoBehaviour
 
     void Start()
     {
-        // Hiyerarşi düzeni için container oluştur
-        GameObject container = new GameObject("FishContainer");
-        fishContainer = container.transform;
+        // Hiyerarşi düzeni için container oluştur/reuse et (ROOT object olsun)
+        if (fishContainer == null)
+        {
+            GameObject existing = GameObject.Find("FishContainer");
+            if (existing != null)
+            {
+                fishContainer = existing.transform;
+            }
+            else
+            {
+                GameObject container = new GameObject("FishContainer");
+                fishContainer = container.transform;
+            }
+        }
+
+        // Her durumda root'ta kalsın
+        if (fishContainer.parent != null)
+            fishContainer.SetParent(null, true);
+
+        DevLog.Info(
+            "Spawn",
+            $"FishSpawner.Start types={(fishTypes != null ? fishTypes.Count : 0)} maxFish={maxFishCount} areaX=[{minX:0.0},{maxX:0.0}] areaY=[{minY:0.0},{maxY:0.0}] depthAffectsRarity={depthAffectsRarity} depthStart={depthRarityStart:0.0} depthFull={depthRarityFull:0.0}"
+        );
 
         // Eğer balık türü yoksa varsayılanları ekle
         if (fishTypes == null || fishTypes.Count == 0)
@@ -264,6 +301,8 @@ public class FishSpawner : MonoBehaviour
             if (fish != null)
             {
                 fish.SetPool(ReturnFishToPool);
+                fish.SetDefaultParent(fishContainer);
+                ApplyMovementBoundsToFish(fish);
                 fishPool.Enqueue(fish);
             }
             else
@@ -321,7 +360,7 @@ public class FishSpawner : MonoBehaviour
         fishTypes.Add(new FishType { name = "Legendary Fish", nameTR = "Efsanevi Balık", nameEN = "Legendary Fish", localizationKey = "fish.legendary", rarity = FishType.FishRarity.Legendary, luckWeightMultiplier = 1f, speed = 6f, turnDelay = 5f, difficulty = 5f, scale = 1.25f, score = 100, spawnWeight = 5, sprite = defaultSprite });
 
         if (Application.isPlaying)
-            Debug.Log("Varsayilan balik turleri eklendi.");
+            DevLog.Info("Spawn", "Default fish types populated");
     }
 
     void Update()
@@ -365,6 +404,11 @@ public class FishSpawner : MonoBehaviour
         Vector3 pos = new Vector3(x, y, 0);
 
         Fish fishScript = GetFishFromPool(pos);
+        if (fishScript == null)
+        {
+            DevLog.Warn("Spawn", "SpawnFish skipped: pool empty or invalid fish instance");
+            return;
+        }
 
         // Balık özelliklerini ayarla
         if (fishScript != null)
@@ -401,6 +445,10 @@ public class FishSpawner : MonoBehaviour
 
         if (fish != null)
         {
+            fish.SetDefaultParent(fishContainer);
+            ApplyMovementBoundsToFish(fish);
+            if (fish.transform.parent != fishContainer)
+                fish.transform.SetParent(fishContainer, true);
             fish.transform.position = position;
             fish.gameObject.SetActive(true);
             // ResetState is called via OnEnable in Fish.cs
@@ -418,12 +466,40 @@ public class FishSpawner : MonoBehaviour
     {
         if (fish == null) return;
 
+        if (fishContainer != null && fish.transform.parent != fishContainer)
+            fish.transform.SetParent(fishContainer, true);
         fish.gameObject.SetActive(false);
         fishPool.Enqueue(fish);
         currentFishCount--;
 
         // Balık eksildiyse hemen yerine bir tane üret.
         EnsureFishPopulation();
+    }
+
+    private void ApplyMovementBoundsToFish(Fish fish)
+    {
+        if (fish == null) return;
+
+        if (!limitFishMovement)
+        {
+            fish.SetMovementBounds(false, Vector2.zero, Vector2.zero);
+            return;
+        }
+
+        Vector2 min;
+        Vector2 max;
+        if (fishMovementUsesSpawnArea)
+        {
+            min = new Vector2(minX, minY);
+            max = new Vector2(maxX, maxY);
+        }
+        else
+        {
+            min = new Vector2(fishMoveMinX, fishMoveMinY);
+            max = new Vector2(fishMoveMaxX, fishMoveMaxY);
+        }
+
+        fish.SetMovementBounds(true, min, max);
     }
 
     FishType GetRandomFishType()
@@ -644,9 +720,14 @@ public class FishSpawner : MonoBehaviour
             return;
 #endif
 
+        float sx0 = Mathf.Min(minX, maxX);
+        float sx1 = Mathf.Max(minX, maxX);
+        float sy0 = Mathf.Min(minY, maxY);
+        float sy1 = Mathf.Max(minY, maxY);
+
         Gizmos.color = Color.cyan;
-        Vector3 center = new Vector3((minX + maxX) / 2, (minY + maxY) / 2, 0);
-        Vector3 size = new Vector3(Mathf.Abs(maxX - minX), Mathf.Abs(maxY - minY), 0);
+        Vector3 center = new Vector3((sx0 + sx1) / 2f, (sy0 + sy1) / 2f, 0f);
+        Vector3 size = new Vector3(Mathf.Abs(sx1 - sx0), Mathf.Abs(sy1 - sy0), 0f);
         Gizmos.DrawWireCube(center, size);
 
         // Corners for easier reading
@@ -662,7 +743,63 @@ public class FishSpawner : MonoBehaviour
 
 #if UNITY_EDITOR
         Handles.color = new Color(0.2f, 1f, 1f, 0.9f);
-        Handles.Label(center + Vector3.up * 0.4f, "Fish Spawn Area");
+    Handles.Label(center + Vector3.up * 0.85f, "Fish Spawn Area");
+
+        if (limitFishMovement)
+        {
+            float mx0 = fishMovementUsesSpawnArea ? minX : fishMoveMinX;
+            float mx1 = fishMovementUsesSpawnArea ? maxX : fishMoveMaxX;
+            float my0 = fishMovementUsesSpawnArea ? minY : fishMoveMinY;
+            float my1 = fishMovementUsesSpawnArea ? maxY : fishMoveMaxY;
+
+            Vector3 mCenter = new Vector3((mx0 + mx1) / 2f, (my0 + my1) / 2f, 0f);
+            Vector3 mSize = new Vector3(Mathf.Abs(mx1 - mx0), Mathf.Abs(my1 - my0), 0f);
+
+            Gizmos.color = new Color(1f, 0.92f, 0.2f, 0.9f);
+            Gizmos.DrawWireCube(mCenter, mSize);
+
+            Handles.color = new Color(1f, 0.92f, 0.2f, 0.95f);
+            string label = fishMovementUsesSpawnArea ? "Fish Movement Bounds (Spawn)" : "Fish Movement Bounds";
+            Handles.Label(mCenter + Vector3.up * 1.25f, label);
+        }
+
+        if (depthAffectsRarity)
+        {
+            float xForSurface = center.x;
+            float surfaceY = depthGizmoSurfaceFallbackY;
+
+            WaveManager wm = null;
+            if (WaveManager.instance != null)
+                wm = WaveManager.instance;
+            else
+                wm = FindObjectOfType<WaveManager>();
+
+            if (wm != null)
+                surfaceY = wm.GetWaveHeight(xForSurface);
+
+            float start = Mathf.Max(0f, depthRarityStart);
+            float full = Mathf.Max(start + 0.01f, depthRarityFull);
+
+            float yStart = surfaceY - start;
+            float yFull = surfaceY - full;
+
+            // Start depth line
+            Gizmos.color = new Color(1f, 0.2f, 1f, 0.85f);
+            Gizmos.DrawLine(new Vector3(sx0, yStart, 0f), new Vector3(sx1, yStart, 0f));
+            Gizmos.DrawSphere(new Vector3(sx0, yStart, 0f), 0.08f);
+            Gizmos.DrawSphere(new Vector3(sx1, yStart, 0f), 0.08f);
+
+            // Full depth line
+            Gizmos.color = new Color(0.8f, 0.2f, 1f, 0.85f);
+            Gizmos.DrawLine(new Vector3(sx0, yFull, 0f), new Vector3(sx1, yFull, 0f));
+            Gizmos.DrawSphere(new Vector3(sx0, yFull, 0f), 0.08f);
+            Gizmos.DrawSphere(new Vector3(sx1, yFull, 0f), 0.08f);
+
+            Handles.color = new Color(1f, 0.2f, 1f, 0.95f);
+            Handles.Label(new Vector3(sx0, yStart, 0f) + Vector3.left * 0.25f + Vector3.up * 0.15f, $"Depth rarity start ({start:0.##}m)");
+            Handles.color = new Color(0.8f, 0.2f, 1f, 0.95f);
+            Handles.Label(new Vector3(sx0, yFull, 0f) + Vector3.left * 0.25f + Vector3.up * 0.15f, $"Depth rarity full ({full:0.##}m)");
+        }
 #endif
     }
 }

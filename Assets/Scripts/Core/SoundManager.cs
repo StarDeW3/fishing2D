@@ -50,6 +50,8 @@ public class SoundManager : MonoBehaviour
             DontDestroyOnLoad(gameObject);
             InitializeAudioSources();
 
+            DevLog.Info("Audio", "SoundManager.Awake initialized audio sources");
+
             // Eğer SettingsManager halihazırda varsa ilk değerleri uygula.
             if (SettingsManager.instance != null)
             {
@@ -58,6 +60,7 @@ public class SoundManager : MonoBehaviour
         }
         else
         {
+            DevLog.Warn("Audio", "Duplicate SoundManager destroyed");
             Destroy(gameObject);
         }
     }
@@ -224,6 +227,11 @@ public class SoundManager : MonoBehaviour
         AutoAssignClipsFromResourcesIfMissing();
         ValidateClipAssignments();
 
+        DevLog.Info(
+            "Audio",
+            $"Clips assigned: music={(backgroundMusic != null)} cast={(castSound != null)} splash={(splashSound != null)} reeling={(reelSound != null)} catch={(catchSound != null)} escape={(escapeSound != null)} engine={(boatEngineSound != null)}"
+        );
+
         if (backgroundMusic != null)
             PlayMusic(backgroundMusic);
     }
@@ -349,10 +357,16 @@ public class SoundManager : MonoBehaviour
         if (playing && reelSound == null)
             AutoAssignClipsFromResourcesIfMissing();
 
+        if (playing && reelSound == null)
+            DevLog.Warn("Audio", "ReelLoop requested but reelSound is missing (Resources: 'reeling')");
+
         if (!playing || isMuted || reelSound == null)
         {
             if (reelLoopSource.isPlaying)
+            {
+                DevLog.Info("Audio", "ReelLoop STOP");
                 reelLoopSource.Stop();
+            }
             reelLoopSource.clip = reelSound;
             UpdateVolumes();
             return;
@@ -364,7 +378,10 @@ public class SoundManager : MonoBehaviour
 
         UpdateVolumes();
         if (!reelLoopSource.isPlaying)
+        {
+            DevLog.Info("Audio", $"ReelLoop START volScale={reelLoopVolumeScale:0.00} pitch={reelLoopSource.pitch:0.00}");
             reelLoopSource.Play();
+        }
     }
 
     public void SetBoatEngineLoop(bool playing, float volumeScale = 0.7f, float pitch = 1f)
@@ -378,10 +395,16 @@ public class SoundManager : MonoBehaviour
         if (playing && boatEngineSound == null)
             AutoAssignClipsFromResourcesIfMissing();
 
+        if (playing && boatEngineSound == null)
+            DevLog.Warn("Audio", "EngineLoop requested but boatEngineSound is missing (Resources: 'engine')");
+
         if (!playing || isMuted || boatEngineSound == null)
         {
             if (engineLoopSource.isPlaying)
+            {
+                DevLog.Info("Audio", "EngineLoop STOP");
                 engineLoopSource.Stop();
+            }
             engineLoopSource.clip = boatEngineSound;
             UpdateVolumes();
             return;
@@ -393,7 +416,10 @@ public class SoundManager : MonoBehaviour
 
         UpdateVolumes();
         if (!engineLoopSource.isPlaying)
+        {
+            DevLog.Info("Audio", $"EngineLoop START volScale={engineLoopVolumeScale:0.00} pitch={engineLoopSource.pitch:0.00}");
             engineLoopSource.Play();
+        }
     }
 
     public void StopMusic()

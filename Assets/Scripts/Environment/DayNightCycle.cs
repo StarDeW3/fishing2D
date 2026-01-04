@@ -6,6 +6,7 @@ using UnityEditor;
 
 public class DayNightCycle : MonoBehaviour
 {
+    private const string LOG_CAT = "DayNightCycle";
     [Header("Zaman Ayarları")]
     [Tooltip("Bir oyun gününün saniye cinsinden süresi")]
     public float dayDuration = 120f; // 2 dakika
@@ -66,6 +67,8 @@ public class DayNightCycle : MonoBehaviour
 
         // WaveManager'ı önbelleğe al
         waveManager = WaveManager.instance;
+
+        DevLog.Info(LOG_CAT, $"Start (dayDuration={dayDuration:0.##}s, timeOfDay={timeOfDay:0.##}, controlWaterColor={controlWaterColor}, waveManager={(waveManager != null ? "ok" : "null")})");
     }
 
     void Update()

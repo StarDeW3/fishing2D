@@ -7,6 +7,8 @@ public class UIManager : MonoBehaviour
 {
     public static UIManager instance;
 
+    private const string LOG_CAT = "UIManager";
+
     private const string PREF_TOTAL_FISH_CAUGHT = "TotalFishCaught";
     private const string PREF_TOTAL_MONEY_EARNED = "TotalMoneyEarned";
     private const string PREF_PLAY_TIME = "PlayTime";
@@ -39,6 +41,7 @@ public class UIManager : MonoBehaviour
 
         instance = this;
 
+        DevLog.Info(LOG_CAT, "Awake");
         LoadStats();
     }
 
@@ -49,22 +52,28 @@ public class UIManager : MonoBehaviour
             LocalizationManager.instance.LanguageChanged -= OnLanguageChanged;
             LocalizationManager.instance.LanguageChanged += OnLanguageChanged;
         }
+
+        DevLog.Info(LOG_CAT, "OnEnable");
     }
 
     private void OnDisable()
     {
         if (LocalizationManager.instance != null)
             LocalizationManager.instance.LanguageChanged -= OnLanguageChanged;
+
+        DevLog.Info(LOG_CAT, "OnDisable");
     }
 
     private void OnLanguageChanged()
     {
+        DevLog.Info(LOG_CAT, "LanguageChanged -> refresh stats UI");
         RefreshLocalizedStaticText();
         RefreshStatsUI();
     }
 
     void Start()
     {
+        DevLog.Info(LOG_CAT, "Start -> CreateAllUI");
         CreateAllUI();
     }
 
@@ -88,11 +97,13 @@ public class UIManager : MonoBehaviour
 
     void OnDestroy()
     {
+        DevLog.Info(LOG_CAT, "OnDestroy -> flush stats");
         FlushStatsIfDue(force: true);
     }
 
     void OnApplicationQuit()
     {
+        DevLog.Info(LOG_CAT, "OnApplicationQuit -> flush stats");
         FlushStatsIfDue(force: true);
     }
 
@@ -108,6 +119,7 @@ public class UIManager : MonoBehaviour
 
     void CreateAllUI()
     {
+        DevLog.Info(LOG_CAT, "CreateAllUI");
         // Canvas Bul veya Oluştur
         mainCanvas = null;
 
@@ -293,6 +305,8 @@ public class UIManager : MonoBehaviour
         bool isActive = !statsPanel.activeSelf;
         statsPanel.SetActive(isActive);
 
+        DevLog.Info(LOG_CAT, $"StatsPanel {(isActive ? "opened" : "closed")}");
+
         if (isActive)
         {
             PauseGame();
@@ -355,6 +369,8 @@ public class UIManager : MonoBehaviour
         PlayerPrefs.SetInt(PREF_TOTAL_MONEY_EARNED, totalMoneyEarned);
         PlayerPrefs.SetFloat(PREF_PLAY_TIME, playTime);
         PlayerPrefs.Save();
+
+        DevLog.Info(LOG_CAT, $"SaveStats (fish={totalFishCaught}, earned=${totalMoneyEarned}, playTime={playTime:0.0}s)");
     }
 
     void LoadStats()
@@ -362,5 +378,7 @@ public class UIManager : MonoBehaviour
         totalFishCaught = PlayerPrefs.GetInt(PREF_TOTAL_FISH_CAUGHT, 0);
         totalMoneyEarned = PlayerPrefs.GetInt(PREF_TOTAL_MONEY_EARNED, 0);
         playTime = PlayerPrefs.GetFloat(PREF_PLAY_TIME, 0f);
+
+        DevLog.Info(LOG_CAT, $"LoadStats (fish={totalFishCaught}, earned=${totalMoneyEarned}, playTime={playTime:0.0}s)");
     }
 }

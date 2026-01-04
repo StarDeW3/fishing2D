@@ -245,6 +245,8 @@ public partial class GameManager : MonoBehaviour
         money = PlayerPrefs.GetInt(PREF_MONEY, 0);
         isFirstStart = PlayerPrefs.GetInt(PREF_FIRST_START, 1) == 1;
 
+        DevLog.Info("Boot", $"GameManager.Awake money={money} firstStart={isFirstStart}");
+
         autoStartGameOnLoad = PlayerPrefs.GetInt(PREF_PENDING_AUTOSTART, 0) == 1;
         if (autoStartGameOnLoad)
         {
@@ -290,6 +292,7 @@ public partial class GameManager : MonoBehaviour
 
         if (autoStartGameOnLoad)
         {
+            DevLog.Info("Boot", "AutoStartGameOnLoad=true -> StartGame(false)");
             StartGame(false);
         }
         else
@@ -562,10 +565,14 @@ public partial class GameManager : MonoBehaviour
 
     private void SetPause(PauseSource source, bool enabled)
     {
+        PauseSource before = pauseMask;
         if (enabled)
             pauseMask |= source;
         else
             pauseMask &= ~source;
+
+        if (before != pauseMask)
+            DevLog.Info("Pause", $"{source} {(enabled ? "ON" : "OFF")} -> mask={pauseMask}");
 
         ApplyPauseState();
 
@@ -625,6 +632,7 @@ public partial class GameManager : MonoBehaviour
     {
         if (newGame)
         {
+            DevLog.Info("Game", "StartGame(newGame=true) -> reset progress + reload scene");
             // Ensure no persistent overlay UI (DontDestroy managers) remains visible across reload.
             if (QuestManager.instance != null)
                 QuestManager.instance.ForceClosePanel();
@@ -647,6 +655,8 @@ public partial class GameManager : MonoBehaviour
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
             return;
         }
+
+        DevLog.Info("Game", "StartGame(newGame=false) -> gameplay active");
 
         PlayerPrefs.SetInt(PREF_FIRST_START, 0);
         PlayerPrefs.Save();

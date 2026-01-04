@@ -10,6 +10,8 @@ public class WaveManager : MonoBehaviour
 {
     public static WaveManager instance;
 
+    private const string LOG_CAT = "WaveManager";
+
     private static Material sharedWaterMaterial;
 
     [Header("Dalga Ayarları")]
@@ -81,6 +83,8 @@ public class WaveManager : MonoBehaviour
     private float nextCameraSearchTime = 0f;
     private const float CAMERA_SEARCH_INTERVAL = 1f;
 
+    private float lastLoggedWeatherIntensity = float.NaN;
+
     void Awake()
     {
         if (instance != null && instance != this)
@@ -90,6 +94,8 @@ public class WaveManager : MonoBehaviour
         }
 
         instance = this;
+
+        DevLog.Info(LOG_CAT, "Awake");
     }
 
     void Start()
@@ -117,6 +123,8 @@ public class WaveManager : MonoBehaviour
         }
 
         InitializeMeshArrays();
+
+        DevLog.Info(LOG_CAT, $"Start (meshResolution={meshResolution}, meshWidth={meshWidth:0.##}, bottomDepth={bottomDepth:0.##}, useDetailWaves={useDetailWaves})");
     }
 
     public void SetWeatherIntensity(float intensity)
@@ -124,6 +132,12 @@ public class WaveManager : MonoBehaviour
         weatherIntensity = intensity;
         amplitude = baseAmplitude * weatherIntensity;
         detailAmplitude = baseDetailAmplitude * weatherIntensity;
+
+        if (float.IsNaN(lastLoggedWeatherIntensity) || !Mathf.Approximately(lastLoggedWeatherIntensity, weatherIntensity))
+        {
+            lastLoggedWeatherIntensity = weatherIntensity;
+            DevLog.Info(LOG_CAT, $"SetWeatherIntensity ({weatherIntensity:0.##}) -> amplitude={amplitude:0.###}, detailAmplitude={detailAmplitude:0.###}");
+        }
     }
 
     void InitializeMeshArrays()

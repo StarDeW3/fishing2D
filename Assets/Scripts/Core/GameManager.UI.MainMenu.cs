@@ -12,6 +12,8 @@ public partial class GameManager
             if (settingsPanel == null) return;
             SetPause(PauseSource.UIPanel, true);
             this.UpdateSettingsUI();
+
+            DevLog.Info("GameManager", "Settings UI created + opened");
             return;
         }
 
@@ -19,12 +21,16 @@ public partial class GameManager
         settingsPanel.SetActive(show);
         SetPause(PauseSource.UIPanel, show);
         if (show) this.UpdateSettingsUI();
+
+        DevLog.Info("GameManager", $"Settings UI {(show ? "opened" : "closed")}");
     }
 
     void CreateMainMenu()
     {
         Transform canvasTr = GetCanvasTransform();
         if (canvasTr == null) return;
+
+        DevLog.Info("GameManager", $"CreateMainMenu (isFirstStart={isFirstStart}, money={money})");
 
         mainMenuPanel = new GameObject("MainMenuPanel");
         mainMenuPanel.transform.SetParent(canvasTr, false);
@@ -167,9 +173,12 @@ public partial class GameManager
     {
         if (isFirstStart || money == 0)
         {
+            DevLog.Info("GameManager", "ShowNewGameConfirm bypassed -> StartGame(newGame=true)");
             StartGame(true);
             return;
         }
+
+        DevLog.Info("GameManager", "ShowNewGameConfirm opened");
 
         // Onay penceresi göster
         GameObject confirmPanel = new GameObject("ConfirmPanel");
@@ -220,6 +229,7 @@ public partial class GameManager
         yesBtnComp.onClick.AddListener(() =>
         {
             Destroy(confirmPanel);
+            DevLog.Info("GameManager", "NewGameConfirm: YES -> StartGame(newGame=true)");
             StartGame(true);
         });
 
@@ -237,6 +247,12 @@ public partial class GameManager
         noRect.sizeDelta = new Vector2(-30, 50);
 
         CreateStretchedLabel(noBtn.transform, "Text", T("confirm.newGame.no", "HAYIR"), 18, Color.white);
+
+        noBtnComp.onClick.AddListener(() =>
+        {
+            Destroy(confirmPanel);
+            DevLog.Info("GameManager", "NewGameConfirm: NO");
+        });
 
         noBtnComp.onClick.AddListener(() => Destroy(confirmPanel));
     }

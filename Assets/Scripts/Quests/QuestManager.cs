@@ -130,6 +130,8 @@ public class QuestManager : MonoBehaviour
 
     private int unlockedCount = 0;
 
+    private const string LOG_CAT = "QuestManager";
+
     private int GetActiveQuestCount()
     {
         int total = quests != null ? quests.Count : 0;
@@ -148,7 +150,11 @@ public class QuestManager : MonoBehaviour
         instance = this;
         DontDestroyOnLoad(gameObject);
 
+        DevLog.Info(LOG_CAT, $"Awake (quests={quests?.Count ?? 0}, sequentialUnlock={sequentialUnlock}, initialUnlockedCount={initialUnlockedCount}, unlockOnClaim={unlockOnClaim})");
+
         EnsureDefaultQuestsIfEmpty();
+
+        DevLog.Info(LOG_CAT, $"Defaults ensured (quests={quests?.Count ?? 0})");
 
         LoadState();
 
@@ -162,10 +168,13 @@ public class QuestManager : MonoBehaviour
     {
         if (LocalizationManager.instance != null)
             LocalizationManager.instance.LanguageChanged -= OnLanguageChanged;
+
+        DevLog.Info(LOG_CAT, "OnDestroy");
     }
 
     private void OnLanguageChanged()
     {
+        DevLog.Info(LOG_CAT, "LanguageChanged -> refresh quests UI");
         RefreshPanelChromeTexts();
         if (panel != null && panel.activeSelf)
             RefreshUI();
@@ -260,9 +269,7 @@ public class QuestManager : MonoBehaviour
         var kb = Keyboard.current;
         if (kb != null && kb.tabKey.wasPressedThisFrame)
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.Log("QuestManager: TAB pressed");
-#endif
+            DevLog.Info(LOG_CAT, "TAB pressed -> TogglePanel");
             TogglePanel();
         }
 
@@ -331,7 +338,11 @@ public class QuestManager : MonoBehaviour
 
     private void TogglePanel()
     {
-        if (!CanTogglePanel()) return;
+        if (!CanTogglePanel())
+        {
+            DevLog.Info(LOG_CAT, "TogglePanel blocked (not in playable state)");
+            return;
+        }
 
         EnsureUI();
 
@@ -361,12 +372,16 @@ public class QuestManager : MonoBehaviour
 
         if (show)
             RefreshUI();
+
+        DevLog.Info(LOG_CAT, $"Panel {(show ? "opened" : "closed")}");
     }
 
     public void ForceClosePanel()
     {
         if (panel != null) panel.SetActive(false);
         if (backdrop != null) backdrop.SetActive(false);
+
+        DevLog.Info(LOG_CAT, "ForceClosePanel");
     }
 
     private void EnsureUI()
@@ -514,9 +529,7 @@ public class QuestManager : MonoBehaviour
         backdrop.SetActive(false);
         panel.SetActive(false);
 
-    #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        Debug.Log("QuestManager: QuestPanel UI created");
-    #endif
+        DevLog.Info(LOG_CAT, "QuestPanel UI created");
     }
 
     private void ClearListUI()
@@ -720,6 +733,8 @@ public class QuestManager : MonoBehaviour
     {
         bool changed = false;
 
+        DevLog.Info(LOG_CAT, $"ReportFishCaught (fish={(fish != null ? fish.fishName : "null")}, payout={payout})");
+
         int activeCount = GetActiveQuestCount();
         for (int i = 0; i < activeCount; i++)
         {
@@ -770,6 +785,8 @@ public class QuestManager : MonoBehaviour
     {
         bool changed = false;
 
+        DevLog.Info(LOG_CAT, $"ReportUpgradeBought (type={type})");
+
         int activeCount = GetActiveQuestCount();
         for (int i = 0; i < activeCount; i++)
         {
@@ -792,6 +809,8 @@ public class QuestManager : MonoBehaviour
     public void ReportDepth(float depthMeters)
     {
         if (depthMeters < 0f) return;
+
+        DevLog.Info(LOG_CAT, $"ReportDepth (depthMeters={depthMeters:0.##})");
 
         bool changed = false;
 
@@ -839,6 +858,8 @@ public class QuestManager : MonoBehaviour
 
         if (GameManager.instance != null)
             GameManager.instance.AddMoney(q.rewardMoney);
+
+        DevLog.Info(LOG_CAT, $"Claimed quest '{questId}' -> +${q.rewardMoney} (unlockedCount={unlockedCount})");
 
         if (panel != null && panel.activeSelf)
             RefreshUI();
@@ -901,6 +922,8 @@ public class QuestManager : MonoBehaviour
         }
 
         SaveState();
+
+        DevLog.Info(LOG_CAT, $"LoadState (unlockedCount={unlockedCount}, progressKeys={progressById.Count}, claimed={claimed.Count})");
     }
 
     private void SaveState()
@@ -931,6 +954,8 @@ public class QuestManager : MonoBehaviour
         PlayerPrefs.SetInt(PREF_UNLOCKED_COUNT, unlockedCount);
 
         PlayerPrefs.Save();
+
+        DevLog.Info(LOG_CAT, $"SaveState (unlockedCount={unlockedCount}, progressKeys={progressById.Count}, claimed={claimed.Count})");
     }
 
     public static void ResetAllQuestProgressPrefs()

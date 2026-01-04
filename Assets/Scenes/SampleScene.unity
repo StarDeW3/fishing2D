@@ -378,7 +378,7 @@ MonoBehaviour:
   moveSpeedMin: 0.5
   moveSpeedMax: 2
   showGizmos: 1
-  gizmosOnlyWhenSelected: 0
+  gizmosOnlyWhenSelected: 1
   spawnHeightMin: 0
   spawnHeightMax: 3
   cameraFollow: 0.75
@@ -398,7 +398,7 @@ MonoBehaviour:
   timeOfDay: 0.25
   sun: {fileID: 541968638}
   moon: {fileID: 56025944}
-  orbitRadius: {x: 9.32, y: 3.8}
+  orbitRadius: {x: 9, y: 3}
   horizonOffset: 0.4
   mainCamera: {fileID: 519420031}
   skyColor:
@@ -567,6 +567,9 @@ MonoBehaviour:
   moveSpeed: 10
   baseSpeed: 10
   canMove: 1
+  limitMovementX: 1
+  minX: -40
+  maxX: 40
   surfaceOffset: 1.9
   floatStrength: 2
   rotationSpeed: 2
@@ -574,7 +577,7 @@ MonoBehaviour:
   displacementAmount: 1.75
   stabilityMultiplier: 1
   showGizmos: 1
-  gizmosOnlyWhenSelected: 1
+  gizmosOnlyWhenSelected: 0
 --- !u!114 &503533732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -768,7 +771,7 @@ MonoBehaviour:
   gizmoStep: 0.5
   weatherIntensity: 1
   meshResolution: 100
-  meshWidth: 60
+  meshWidth: 70
   bottomDepth: 70
   topColor: {r: 0, g: 0.6, b: 0.9, a: 0.16470589}
   bottomColor: {r: 0, g: 0.1, b: 0.3, a: 0.2901961}
@@ -1028,12 +1031,12 @@ MonoBehaviour:
   engineLoopSource: {fileID: 0}
   backgroundMusic: {fileID: 8300000, guid: 431d1cd860744b649a6688ee46bdeb16, type: 3}
   castSound: {fileID: 8300000, guid: 4a7bb89206f5dee449f0317d429dcec0, type: 3}
-  splashSound: {fileID: 8300000, guid: fa814e449b86ef84bb687d37bed137aa, type: 3}
-  reelSound: {fileID: 8300000, guid: 5960c680446bc4044955561be143da2c, type: 3}
-  catchSound: {fileID: 8300000, guid: 81489885064f6a94dbe1fdca809da1e5, type: 3}
+  splashSound: {fileID: 8300000, guid: dde6371893f04b34d83e9f23db6c7a6c, type: 3}
+  reelSound: {fileID: 8300000, guid: 18472cac90dffbe45960ecbe4d5b4270, type: 3}
+  catchSound: {fileID: 8300000, guid: ab2e9c89fc1a47145b78e59959f4a80b, type: 3}
   escapeSound: {fileID: 8300000, guid: a4bfeee6bf3d0074ea61d153ca46a1e9, type: 3}
   boatEngineSound: {fileID: 8300000, guid: 208e1f70371688b4e972414d6c09c9b9, type: 3}
-  musicVolume: 0.409
+  musicVolume: 0.4
   sfxVolume: 1
   isMuted: 0
 --- !u!1 &541968637
@@ -1327,15 +1330,22 @@ MonoBehaviour:
     minYOverride: -10
     maxYOverride: -2
   populateDefaultFishTypesInEditor: 1
-  minX: -10
-  maxX: 10
-  minY: -67.98
+  minX: -20
+  maxX: 20
+  minY: -65
   maxY: -2
+  limitFishMovement: 1
+  fishMovementUsesSpawnArea: 1
+  fishMoveMinX: -19.9
+  fishMoveMaxX: 15
+  fishMoveMinY: -10
+  fishMoveMaxY: -2
   depthAffectsRarity: 1
-  depthRarityStart: 1.5
-  depthRarityFull: 14
+  depthRarityStart: 3
+  depthRarityFull: 50
+  depthGizmoSurfaceFallbackY: 0
   showGizmos: 1
-  gizmosOnlyWhenSelected: 0
+  gizmosOnlyWhenSelected: 1
 --- !u!1 &800295555
 GameObject:
   m_ObjectHideFlags: 0

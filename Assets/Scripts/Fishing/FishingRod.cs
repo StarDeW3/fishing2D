@@ -375,6 +375,8 @@ public class FishingRod : MonoBehaviour
         finalForce *= multiplier;
         finalForce = Mathf.Clamp(finalForce, 2.5f, 16f);
 
+        DevLog.Info("Fishing", $"CastLine charge={Mathf.Clamp01(charge01):0.00} force={finalForce:0.00} dir={dir}");
+
         hookRb.AddForce(dir * finalForce, ForceMode2D.Impulse);
 
         // Kameraya kancayı bildir
@@ -393,6 +395,8 @@ public class FishingRod : MonoBehaviour
     {
         // Called by Hook when tension exceeds threshold.
         if (!isCasting) return;
+
+        DevLog.Warn("Fishing", "Line broke (BreakLine)");
 
         if (GameManager.instance != null)
             GameManager.instance.ShowFeedback(LocalizationManager.T("feedback.lineBroke", "Misina koptu!"), Color.red);
@@ -430,6 +434,10 @@ public class FishingRod : MonoBehaviour
         if (SoundManager.instance != null)
             SoundManager.instance.PlaySFX(SoundManager.instance.catchSound, 1f, 0.2f);
 
+        string fishNameForLog = fish != null && !string.IsNullOrEmpty(fish.fishName)
+            ? fish.fishName
+            : "Fish";
+
         if (GameManager.instance != null)
         {
             GameManager.instance.AddMoney(payout); // Score -> Money (+ storage bonus)
@@ -451,6 +459,8 @@ public class FishingRod : MonoBehaviour
             GameManager.instance.ShowFeedback(msg);
         }
 
+        DevLog.Info("Fishing", $"ReelInSuccess fish='{fishNameForLog}' payout=${payout}");
+
         if (fish != null) fish.Despawn();
 
         ResetFishingState();
@@ -462,6 +472,7 @@ public class FishingRod : MonoBehaviour
 
     public void ReelInFail()
     {
+        DevLog.Info("Fishing", "ReelInFail (fish escaped)");
         if (GameManager.instance != null)
         {
             GameManager.instance.ShowFeedback(LocalizationManager.T("feedback.escaped", "Balık kaçtı!"), Color.red);

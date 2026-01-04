@@ -7,6 +7,7 @@ using UnityEditor;
 
 public class CloudManager : MonoBehaviour
 {
+    private const string LOG_CAT = "CloudManager";
     [Header("Bulut Ayarları")]
     public GameObject[] cloudPrefabs; // Farklı bulut şekilleri
     public float spawnInterval = 5f;  // Kaç saniyede bir bulut çıksın
@@ -39,6 +40,8 @@ public class CloudManager : MonoBehaviour
     void Start()
     {
         cam = Camera.main;
+
+        DevLog.Info(LOG_CAT, $"Start (spawnInterval={spawnInterval:0.##}, prefabs={cloudPrefabs?.Length ?? 0}, cameraFollow={cameraFollow:0.##})");
     }
 
     void Update()
@@ -72,9 +75,17 @@ public class CloudManager : MonoBehaviour
 
     void SpawnCloud()
     {
-        if (cloudPrefabs.Length == 0) return;
+        if (cloudPrefabs == null || cloudPrefabs.Length == 0)
+        {
+            DevLog.Warn(LOG_CAT, "SpawnCloud skipped (no cloudPrefabs assigned)");
+            return;
+        }
         if (cam == null) cam = Camera.main;
-        if (cam == null) return;
+        if (cam == null)
+        {
+            DevLog.Warn(LOG_CAT, "SpawnCloud skipped (no Camera.main)");
+            return;
+        }
 
         // Kamera boyutlarına göre X pozisyonlarını hesapla
         float halfHeight = cam.orthographicSize;
@@ -105,6 +116,8 @@ public class CloudManager : MonoBehaviour
 
             // Havuza ekle
             cloudPool.Add(cloudScript);
+
+            DevLog.Info(LOG_CAT, $"Pool grew (size={cloudPool.Count})");
         }
         else
         {
@@ -197,6 +210,8 @@ public class CloudMover : MonoBehaviour
     void Awake()
     {
         selfTransform = transform;
+
+        DevLog.Info("CloudMover", $"Awake ({name})");
     }
 
     // Initialize metodu ile dışarıdan değerleri alıyoruz
