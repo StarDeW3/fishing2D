@@ -109,6 +109,10 @@
       "value": "Total Money: ${0}"
     },
     {
+      "key": "gameOver.restart",
+      "value": "RESTART"
+    },
+    {
       "key": "shop.title",
       "value": "SHOP"
     },
@@ -187,6 +191,30 @@
     {
       "key": "ui.stats.title",
       "value": "STATS"
+    },
+    {
+      "key": "ui.quests.title",
+      "value": "QUESTS"
+    },
+    {
+      "key": "ui.quests.hintTabClose",
+      "value": "Press TAB to close"
+    },
+    {
+      "key": "ui.quests.empty",
+      "value": "No quests"
+    },
+    {
+      "key": "ui.quests.claim",
+      "value": "CLAIM"
+    },
+    {
+      "key": "ui.quests.claimed",
+      "value": "CLAIMED"
+    },
+    {
+      "key": "ui.quests.completedFmt",
+      "value": "Quest completed: {0}"
     },
     {
       "key": "ui.section.line",
@@ -282,7 +310,7 @@
     },
     {
       "key": "upgrade.CastDistance.desc",
-      "value": "Cast farther"
+      "value": "Increase maximum casting distance"
     },
     {
       "key": "upgrade.ReelSpeed.name",
@@ -290,15 +318,15 @@
     },
     {
       "key": "upgrade.ReelSpeed.desc",
-      "value": "Reel fish faster"
+      "value": "Reel faster in the fishing minigame"
     },
     {
       "key": "upgrade.BarSize.name",
-      "value": "Hook Size"
+      "value": "Catch Zone"
     },
     {
       "key": "upgrade.BarSize.desc",
-      "value": "Catch more easily"
+      "value": "Bigger green zone in the fishing minigame"
     },
     {
       "key": "upgrade.LineStrength.name",
@@ -306,7 +334,7 @@
     },
     {
       "key": "upgrade.LineStrength.desc",
-      "value": "Reduce line break chance"
+      "value": "Reduces progress loss and line break chance"
     },
     {
       "key": "upgrade.BoatSpeed.name",
@@ -322,7 +350,7 @@
     },
     {
       "key": "upgrade.BoatStability.desc",
-      "value": "Reduce wave wobble"
+      "value": "Reduce wave rocking"
     },
     {
       "key": "upgrade.FishRadar.name",
@@ -330,15 +358,15 @@
     },
     {
       "key": "upgrade.FishRadar.desc",
-      "value": "See fish"
+      "value": "Increase hook detection radius"
     },
     {
       "key": "upgrade.StorageCapacity.name",
-      "value": "Storage"
+      "value": "Storage Bonus"
     },
     {
       "key": "upgrade.StorageCapacity.desc",
-      "value": "Earn bonus money"
+      "value": "Earn more money when selling fish"
     },
     {
       "key": "upgrade.Luck.name",

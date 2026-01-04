@@ -75,6 +75,13 @@ public partial class GameManager
             moneyText.outlineWidth = 0.05f;
             moneyText.outlineColor = new Color(0, 0, 0, 0.6f);
 
+            // Font değişince taşmayı azalt
+            moneyText.enableAutoSizing = true;
+            moneyText.fontSizeMax = 32;
+            moneyText.fontSizeMin = 18;
+            moneyText.textWrappingMode = TextWrappingModes.NoWrap;
+            moneyText.overflowMode = TextOverflowModes.Ellipsis;
+
             ApplyFont(moneyPanel);
 
             RectTransform rect = moneyText.rectTransform;
@@ -108,7 +115,12 @@ public partial class GameManager
             timeText.outlineWidth = 0.05f;
             timeText.outlineColor = new Color(0, 0, 0, 0.6f);
 
-            ApplyFont(timePanel);
+            // Font değişince taşmayı azalt
+            timeText.enableAutoSizing = true;
+            timeText.fontSizeMax = 28;
+            timeText.fontSizeMin = 16;
+            timeText.textWrappingMode = TextWrappingModes.NoWrap;
+            timeText.overflowMode = TextOverflowModes.Truncate;
 
             RectTransform rect = timeText.rectTransform;
 
@@ -128,11 +140,20 @@ public partial class GameManager
             depthText.outlineColor = new Color(0, 0, 0, 0.6f);
             depthText.gameObject.SetActive(false);
 
+            depthText.enableAutoSizing = true;
+            depthText.fontSizeMax = 16;
+            depthText.fontSizeMin = 11;
+            depthText.textWrappingMode = TextWrappingModes.NoWrap;
+            depthText.overflowMode = TextOverflowModes.Truncate;
+
             RectTransform depthRect = depthText.rectTransform;
             depthRect.anchorMin = new Vector2(0, 0);
             depthRect.anchorMax = new Vector2(1, 0.5f);
             depthRect.offsetMin = new Vector2(5, 2);
             depthRect.offsetMax = new Vector2(-5, 0);
+
+            // Apply selected font after all TMP children exist.
+            ApplyFont(timePanel);
         }
 
         // 4. Feedback Text - Minimal, orta üstte
@@ -149,6 +170,12 @@ public partial class GameManager
             feedbackText.outlineWidth = 0.05f;
             feedbackText.outlineColor = new Color(0, 0, 0, 0.7f);
 
+            feedbackText.enableAutoSizing = true;
+            feedbackText.fontSizeMax = 24;
+            feedbackText.fontSizeMin = 14;
+            feedbackText.textWrappingMode = TextWrappingModes.NoWrap;
+            feedbackText.overflowMode = TextOverflowModes.Ellipsis;
+
             RectTransform rect = feedbackText.rectTransform;
             rect.anchorMin = new Vector2(0.5f, 1);
             rect.anchorMax = new Vector2(0.5f, 1);
@@ -156,6 +183,7 @@ public partial class GameManager
             rect.anchoredPosition = new Vector2(0, -120);
             rect.sizeDelta = new Vector2(520, 90);
 
+            ApplyFont(fbObj);
             feedbackText.gameObject.SetActive(false);
         }
 
@@ -269,7 +297,7 @@ public partial class GameManager
             btnRect.anchoredPosition = new Vector2(0, 25);
             btnRect.sizeDelta = new Vector2(180, 50);
 
-            CreateStretchedLabel(btnObj.transform, "Text", "YENIDEN", 22, Color.white);
+            CreateStretchedLabel(btnObj.transform, "Text", T("gameOver.restart", "RESTART"), 22, Color.white);
 
             btn.onClick.AddListener(RestartGame);
 

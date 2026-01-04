@@ -1,6 +1,10 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 [System.Serializable]
 public class FishType
 {
@@ -105,6 +109,16 @@ public class FishSpawner : MonoBehaviour
     public float maxX = 15f;
     public float minY = -10f;
     public float maxY = -2f;
+
+    [Header("Derinlik -> Nadirlik")]
+    [Tooltip("Açıksa, balık nadirliği derinliğe göre ağırlıklandırılır. Derin suda Rare/Epic/Legendary daha olası olur.")]
+    public bool depthAffectsRarity = true;
+
+    [Tooltip("Bu derinliğin altında (m) 'sığ' kabul edilir.")]
+    public float depthRarityStart = 1.5f;
+
+    [Tooltip("Bu derinliğin üstünde (m) 'çok derin' kabul edilir (etki maksimuma ulaşır).")]
+    public float depthRarityFull = 14f;
 
     private float timer;
     private Transform fishContainer;
@@ -319,26 +333,36 @@ public class FishSpawner : MonoBehaviour
     {
         if (fishTypes == null || fishTypes.Count == 0) return;
 
-        // Ağırlıklı rastgele seçim
-        FishType selectedLegacyType = GetRandomFishType();
-        if (selectedLegacyType == null) return;
+        // First pick a spawn position. Then choose fish type using depth-weighted rarity.
+        float x = Random.Range(minX, maxX);
+        float y = Random.Range(Mathf.Min(minY, maxY), Mathf.Max(minY, maxY));
 
-        float yMin = minY;
-        float yMax = maxY;
-        if (selectedLegacyType.overrideSpawnYRange)
+        FishType selectedLegacyType = GetRandomFishTypeForSpawnPoint(x, y);
+        if (selectedLegacyType == null)
         {
-            yMin = selectedLegacyType.minYOverride;
-            yMax = selectedLegacyType.maxYOverride;
+            // Fallback to legacy selection if filtering leaves no candidates.
+            selectedLegacyType = GetRandomFishType();
+            if (selectedLegacyType == null) return;
+
+            float yMin = minY;
+            float yMax = maxY;
+            if (selectedLegacyType.overrideSpawnYRange)
+            {
+                yMin = selectedLegacyType.minYOverride;
+                yMax = selectedLegacyType.maxYOverride;
+            }
+
+            if (yMax < yMin)
+            {
+                float tmp = yMin;
+                yMin = yMax;
+                yMax = tmp;
+            }
+
+            y = Random.Range(yMin, yMax);
         }
 
-        if (yMax < yMin)
-        {
-            float tmp = yMin;
-            yMin = yMax;
-            yMax = tmp;
-        }
-
-        Vector3 pos = new Vector3(Random.Range(minX, maxX), Random.Range(yMin, yMax), 0);
+        Vector3 pos = new Vector3(x, y, 0);
 
         Fish fishScript = GetFishFromPool(pos);
 
@@ -466,6 +490,131 @@ public class FishSpawner : MonoBehaviour
         return fishTypes[fishTypes.Count - 1];
     }
 
+    private FishType GetRandomFishTypeForSpawnPoint(float x, float y)
+    {
+        if (fishTypes == null || fishTypes.Count == 0) return null;
+
+        // Filter types that can actually spawn at the chosen Y.
+        // If a fish overrides spawn Y range, it must include this Y.
+        float yMinGlobal = Mathf.Min(minY, maxY);
+        float yMaxGlobal = Mathf.Max(minY, maxY);
+        if (y < yMinGlobal || y > yMaxGlobal)
+            return null;
+
+        // Luck upgrade is treated as a percentage (0..100).
+        float luckPercent = 0f;
+        if (UpgradeManager.instance != null)
+            luckPercent = Mathf.Max(0f, UpgradeManager.instance.GetValue(UpgradeType.Luck));
+
+        // Weather boost (same as legacy)
+        float weather01 = 0f;
+        if (WaveManager.instance != null)
+            weather01 = Mathf.Clamp01(WaveManager.instance.weatherIntensity - 1f);
+
+        float rawBoost01 = Mathf.Clamp01((luckPercent / 100f) + (weather01 * 0.25f));
+        float boost01 = 1f - Mathf.Exp(-2.25f * rawBoost01);
+
+        float depth01 = 0f;
+        if (depthAffectsRarity)
+        {
+            float waveHeight = 0f;
+            if (WaveManager.instance != null)
+                waveHeight = WaveManager.instance.GetWaveHeight(x);
+
+            // Depth is how far below the surface the spawn point is (meters).
+            float depth = Mathf.Max(0f, waveHeight - y);
+            float start = Mathf.Max(0f, depthRarityStart);
+            float full = Mathf.Max(start + 0.01f, depthRarityFull);
+            depth01 = Mathf.Clamp01(Mathf.InverseLerp(start, full, depth));
+        }
+
+        int currentTotalWeight = 0;
+        for (int i = 0; i < fishTypes.Count; i++)
+        {
+            FishType type = fishTypes[i];
+            if (!TypeAllowsY(type, y))
+                continue;
+
+            int baseWeight = Mathf.Max(0, type.spawnWeight);
+            if (baseWeight == 0) continue;
+
+            float rarityFactor = GetRarityBoostFactor(type.rarity);
+            float perFishMultiplier = Mathf.Clamp(type.luckWeightMultiplier, 0.1f, 3f);
+            float luckMultiplier = 1f + (boost01 * rarityFactor * perFishMultiplier);
+            luckMultiplier = Mathf.Min(luckMultiplier, 10f);
+
+            float depthMultiplier = depthAffectsRarity ? GetDepthRarityWeightMultiplier(type.rarity, depth01) : 1f;
+
+            int adjusted = Mathf.Max(1, Mathf.RoundToInt(baseWeight * luckMultiplier * depthMultiplier));
+            currentTotalWeight += adjusted;
+        }
+
+        if (currentTotalWeight <= 0)
+            return null;
+
+        int randomValue = Random.Range(0, currentTotalWeight);
+        int currentWeight = 0;
+
+        for (int i = 0; i < fishTypes.Count; i++)
+        {
+            FishType type = fishTypes[i];
+            if (!TypeAllowsY(type, y))
+                continue;
+
+            int baseWeight = Mathf.Max(0, type.spawnWeight);
+            if (baseWeight == 0) continue;
+
+            float rarityFactor = GetRarityBoostFactor(type.rarity);
+            float perFishMultiplier = Mathf.Clamp(type.luckWeightMultiplier, 0.1f, 3f);
+            float luckMultiplier = 1f + (boost01 * rarityFactor * perFishMultiplier);
+            luckMultiplier = Mathf.Min(luckMultiplier, 10f);
+
+            float depthMultiplier = depthAffectsRarity ? GetDepthRarityWeightMultiplier(type.rarity, depth01) : 1f;
+            int adjusted = Mathf.Max(1, Mathf.RoundToInt(baseWeight * luckMultiplier * depthMultiplier));
+
+            currentWeight += adjusted;
+            if (randomValue < currentWeight)
+                return type;
+        }
+
+        return null;
+    }
+
+    private static bool TypeAllowsY(FishType type, float y)
+    {
+        if (type == null) return false;
+        if (!type.overrideSpawnYRange) return true;
+
+        float a = type.minYOverride;
+        float b = type.maxYOverride;
+        float min = Mathf.Min(a, b);
+        float max = Mathf.Max(a, b);
+        return y >= min && y <= max;
+    }
+
+    private static float GetDepthRarityWeightMultiplier(FishType.FishRarity rarity, float depth01)
+    {
+        depth01 = Mathf.Clamp01(depth01);
+
+        // At shallow depths, common fish dominate.
+        // At deep depths, rare/epic/legendary become progressively more likely.
+        switch (rarity)
+        {
+            case FishType.FishRarity.Common:
+                return Mathf.Lerp(1.45f, 0.45f, depth01);
+            case FishType.FishRarity.Uncommon:
+                return Mathf.Lerp(1.15f, 0.80f, depth01);
+            case FishType.FishRarity.Rare:
+                return Mathf.Lerp(0.85f, 1.20f, depth01);
+            case FishType.FishRarity.Epic:
+                return Mathf.Lerp(0.55f, 1.60f, depth01);
+            case FishType.FishRarity.Legendary:
+                return Mathf.Lerp(0.25f, 2.05f, depth01);
+            default:
+                return 1f;
+        }
+    }
+
     private static float GetRarityBoostFactor(FishType.FishRarity rarity)
     {
         // Common/uncommon stay mostly unchanged; higher rarities benefit more from luck/weather.
@@ -483,13 +632,37 @@ public class FishSpawner : MonoBehaviour
     [Header("Debug")]
     public bool showGizmos = true;
 
+    [Tooltip("Editor'de, yalnızca obje seçiliyken gizmo çiz.")]
+    public bool gizmosOnlyWhenSelected = false;
+
     void OnDrawGizmos()
     {
         if (!showGizmos) return;
 
+#if UNITY_EDITOR
+        if (gizmosOnlyWhenSelected && !Selection.Contains(gameObject))
+            return;
+#endif
+
         Gizmos.color = Color.cyan;
         Vector3 center = new Vector3((minX + maxX) / 2, (minY + maxY) / 2, 0);
-        Vector3 size = new Vector3(maxX - minX, maxY - minY, 0);
+        Vector3 size = new Vector3(Mathf.Abs(maxX - minX), Mathf.Abs(maxY - minY), 0);
         Gizmos.DrawWireCube(center, size);
+
+        // Corners for easier reading
+        Gizmos.color = new Color(0.2f, 1f, 1f, 0.6f);
+        Vector3 bl = new Vector3(Mathf.Min(minX, maxX), Mathf.Min(minY, maxY), 0f);
+        Vector3 br = new Vector3(Mathf.Max(minX, maxX), Mathf.Min(minY, maxY), 0f);
+        Vector3 tl = new Vector3(Mathf.Min(minX, maxX), Mathf.Max(minY, maxY), 0f);
+        Vector3 tr = new Vector3(Mathf.Max(minX, maxX), Mathf.Max(minY, maxY), 0f);
+        Gizmos.DrawSphere(bl, 0.12f);
+        Gizmos.DrawSphere(br, 0.12f);
+        Gizmos.DrawSphere(tl, 0.12f);
+        Gizmos.DrawSphere(tr, 0.12f);
+
+#if UNITY_EDITOR
+        Handles.color = new Color(0.2f, 1f, 1f, 0.9f);
+        Handles.Label(center + Vector3.up * 0.4f, "Fish Spawn Area");
+#endif
     }
 }

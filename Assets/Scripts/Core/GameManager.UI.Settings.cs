@@ -26,13 +26,6 @@ public partial class GameManager
                 if (t != null) t.text = T("settings.language", "Dil");
             }
 
-            Transform fontTitle = content.Find("FontTitle");
-            if (fontTitle != null)
-            {
-                var t = fontTitle.GetComponent<TextMeshProUGUI>();
-                if (t != null) t.text = T("settings.font", "Yazı Tipi (Font)");
-            }
-
             Transform audioTitle = content.Find("AudioTitle");
             if (audioTitle != null)
             {
@@ -52,25 +45,6 @@ public partial class GameManager
                     t.text = Settings.Language == GameLanguage.English
                         ? T("language.english", "English")
                         : T("language.turkish", "Türkçe");
-            }
-        }
-
-        Transform fontSelector = settingsPanel.transform.Find("Content/FontSelector");
-        if (fontSelector != null)
-        {
-            Transform fontNameObj = fontSelector.Find("FontName");
-            if (fontNameObj != null)
-            {
-                TextMeshProUGUI txt = fontNameObj.GetComponent<TextMeshProUGUI>();
-                if (gameFonts != null && gameFonts.Count > 0 && currentFontIndex < gameFonts.Count)
-                {
-                    txt.text = gameFonts[currentFontIndex].name;
-                    txt.font = gameFonts[currentFontIndex]; // Önizleme
-                }
-                else
-                {
-                    txt.text = T("settings.fontNone", "Font Yok");
-                }
             }
         }
 
@@ -241,51 +215,6 @@ public partial class GameManager
         langNameRect.offsetMin = new Vector2(40, 0);
         langNameRect.offsetMax = new Vector2(-40, 0);
 
-        // Font Seçimi Başlık
-        GameObject fontTitleObj = new GameObject("FontTitle");
-        fontTitleObj.transform.SetParent(content.transform, false);
-        TextMeshProUGUI fontTitle = fontTitleObj.AddComponent<TextMeshProUGUI>();
-        fontTitle.text = T("settings.font", "Yazı Tipi (Font)");
-        fontTitle.fontSize = 18;
-        fontTitle.alignment = TextAlignmentOptions.Center;
-        fontTitle.color = new Color(0.7f, 0.8f, 0.9f);
-        RectTransform fontTitleRect = fontTitle.rectTransform;
-        fontTitleRect.anchorMin = new Vector2(0.5f, 1f);
-        fontTitleRect.anchorMax = new Vector2(0.5f, 1f);
-        fontTitleRect.pivot = new Vector2(0.5f, 1f);
-        fontTitleRect.anchoredPosition = new Vector2(0, -185);
-        fontTitleRect.sizeDelta = new Vector2(300, 30);
-
-        // Font Seçici Container
-        GameObject fontSelector = new GameObject("FontSelector");
-        fontSelector.transform.SetParent(content.transform, false);
-        RectTransform fsRect = fontSelector.AddComponent<RectTransform>();
-        fsRect.anchorMin = new Vector2(0.5f, 1f);
-        fsRect.anchorMax = new Vector2(0.5f, 1f);
-        fsRect.pivot = new Vector2(0.5f, 1f);
-        fsRect.anchoredPosition = new Vector2(0, -220);
-        fsRect.sizeDelta = new Vector2(300, 50);
-
-        // Sol Ok
-        CreateArrowButton(fontSelector.transform, "<", new Vector2(-120, 0), () => ChangeFont(-1));
-
-        // Sağ Ok
-        CreateArrowButton(fontSelector.transform, ">", new Vector2(120, 0), () => ChangeFont(1));
-
-        // Font İsmi
-        GameObject fontNameObj = new GameObject("FontName");
-        fontNameObj.transform.SetParent(fontSelector.transform, false);
-        TextMeshProUGUI fontName = fontNameObj.AddComponent<TextMeshProUGUI>();
-        fontName.text = T("settings.fontNone", "Font Yok");
-        fontName.fontSize = 20;
-        fontName.alignment = TextAlignmentOptions.Center;
-        fontName.color = Color.yellow;
-        RectTransform fontNameRect = fontName.rectTransform;
-        fontNameRect.anchorMin = Vector2.zero;
-        fontNameRect.anchorMax = Vector2.one;
-        fontNameRect.offsetMin = new Vector2(40, 0);
-        fontNameRect.offsetMax = new Vector2(-40, 0);
-
         // Ses Başlık
         GameObject audioTitleObj = new GameObject("AudioTitle");
         audioTitleObj.transform.SetParent(content.transform, false);
@@ -298,23 +227,23 @@ public partial class GameManager
         audioTitleRect.anchorMin = new Vector2(0.5f, 1f);
         audioTitleRect.anchorMax = new Vector2(0.5f, 1f);
         audioTitleRect.pivot = new Vector2(0.5f, 1f);
-        audioTitleRect.anchoredPosition = new Vector2(0, -290);
+        audioTitleRect.anchoredPosition = new Vector2(0, -185);
         audioTitleRect.sizeDelta = new Vector2(300, 30);
 
         // Sliders / Toggles
-        Slider musicSlider = CreateLabeledSliderRow(content.transform, "MusicVolumeRow", new Vector2(0, -330));
+        Slider musicSlider = CreateLabeledSliderRow(content.transform, "MusicVolumeRow", new Vector2(0, -225));
         musicSlider.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetMusicVolume(v); });
 
-        Slider sfxSlider = CreateLabeledSliderRow(content.transform, "SfxVolumeRow", new Vector2(0, -375));
+        Slider sfxSlider = CreateLabeledSliderRow(content.transform, "SfxVolumeRow", new Vector2(0, -270));
         sfxSlider.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetSfxVolume(v); });
 
-        Toggle muteToggle = CreateLabeledToggleRow(content.transform, "MuteRow", new Vector2(0, -420));
+        Toggle muteToggle = CreateLabeledToggleRow(content.transform, "MuteRow", new Vector2(0, -315));
         muteToggle.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetMuted(v); });
 
-        Slider shakeSlider = CreateLabeledSliderRow(content.transform, "ShakeRow", new Vector2(0, -465));
+        Slider shakeSlider = CreateLabeledSliderRow(content.transform, "ShakeRow", new Vector2(0, -360));
         shakeSlider.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetShakeIntensity(v); });
 
-        Toggle rarityToggle = CreateLabeledToggleRow(content.transform, "ShowRarityRow", new Vector2(0, -510));
+        Toggle rarityToggle = CreateLabeledToggleRow(content.transform, "ShowRarityRow", new Vector2(0, -405));
         rarityToggle.onValueChanged.AddListener(v => { if (Settings != null) Settings.SetShowRarityOnCatch(v); });
 
         // Kapat Butonu

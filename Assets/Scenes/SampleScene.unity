@@ -377,6 +377,8 @@ MonoBehaviour:
   spawnInterval: 5
   moveSpeedMin: 0.5
   moveSpeedMax: 2
+  showGizmos: 1
+  gizmosOnlyWhenSelected: 0
   spawnHeightMin: 0
   spawnHeightMax: 3
   cameraFollow: 0.75
@@ -466,6 +468,8 @@ MonoBehaviour:
   waterNightBottom: {r: 0, g: 0.05, b: 0.1, a: 0.8862745}
   referenceCameraSize: 5
   waterSurfaceY: -0.47
+  showGizmos: 1
+  gizmosOnlyWhenSelected: 1
 --- !u!4 &277034719
 Transform:
   m_ObjectHideFlags: 0
@@ -563,12 +567,14 @@ MonoBehaviour:
   moveSpeed: 10
   baseSpeed: 10
   canMove: 1
-  surfaceOffset: 2
+  surfaceOffset: 1.9
   floatStrength: 2
   rotationSpeed: 2
   depthBeforeSubmerged: 1
-  displacementAmount: 1.5
+  displacementAmount: 1.75
   stabilityMultiplier: 1
+  showGizmos: 1
+  gizmosOnlyWhenSelected: 1
 --- !u!114 &503533732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -587,6 +593,24 @@ MonoBehaviour:
   throwDirection: {x: 0, y: -1}
   limitHookHorizontal: 1
   hookMaxHorizontalOffset: 11
+  limitHookRadiusFromCastPoint: 1
+  hookMaxDistanceFromCastPoint: 10
+  scaleLineLimitsWithUpgrades: 1
+  baseLineDistanceMeters: 8
+  maxLineDistanceMetersAtMaxCastLevel: 50
+  castDistanceToHorizontalOffset: 1.5
+  lineElasticity: 2
+  lineSpringStrength: 80
+  lineSpringDamping: 12
+  enableLineBreak: 1
+  lineBreakGraceTime: 0.6
+  lineBreakThreshold: 1
+  lineBreakBuildRate: 1.25
+  lineBreakRecoverRate: 0.75
+  scaleLineBreakWithUpgrades: 1
+  enableChargedCast: 1
+  chargedCastMaxHoldTime: 1
+  chargedCastMaxMultiplier: 1.75
   isMiniGameActive: 0
   showGizmos: 1
 --- !u!120 &503533733
@@ -738,10 +762,14 @@ MonoBehaviour:
   detailAmplitude: 0.1
   detailLength: 1
   detailSpeed: 2
+  showGizmos: 1
+  gizmosOnlyWhenSelected: 0
+  gizmoHalfWidth: 50
+  gizmoStep: 0.5
   weatherIntensity: 1
   meshResolution: 100
-  meshWidth: 100
-  bottomDepth: 250
+  meshWidth: 60
+  bottomDepth: 70
   topColor: {r: 0, g: 0.6, b: 0.9, a: 0.16470589}
   bottomColor: {r: 0, g: 0.1, b: 0.3, a: 0.2901961}
 --- !u!4 &517561887
@@ -978,8 +1006,10 @@ MonoBehaviour:
   lockY: 0
   fixedY: 0
   enableLimits: 1
-  minPosition: {x: -50, y: -200}
-  maxPosition: {x: 50, y: 7}
+  minPosition: {x: -25, y: -70.3}
+  maxPosition: {x: 25, y: 7}
+  showGizmos: 1
+  gizmosOnlyWhenSelected: 0
 --- !u!114 &519420034
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -994,14 +1024,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SoundManager
   musicSource: {fileID: 0}
   sfxSource: {fileID: 0}
+  reelLoopSource: {fileID: 0}
+  engineLoopSource: {fileID: 0}
   backgroundMusic: {fileID: 8300000, guid: 431d1cd860744b649a6688ee46bdeb16, type: 3}
-  castSound: {fileID: 0}
-  splashSound: {fileID: 0}
-  reelSound: {fileID: 0}
-  catchSound: {fileID: 0}
-  escapeSound: {fileID: 0}
-  boatEngineSound: {fileID: 0}
-  musicVolume: 1
+  castSound: {fileID: 8300000, guid: 4a7bb89206f5dee449f0317d429dcec0, type: 3}
+  splashSound: {fileID: 8300000, guid: fa814e449b86ef84bb687d37bed137aa, type: 3}
+  reelSound: {fileID: 8300000, guid: 5960c680446bc4044955561be143da2c, type: 3}
+  catchSound: {fileID: 8300000, guid: 81489885064f6a94dbe1fdca809da1e5, type: 3}
+  escapeSound: {fileID: 8300000, guid: a4bfeee6bf3d0074ea61d153ca46a1e9, type: 3}
+  boatEngineSound: {fileID: 8300000, guid: 208e1f70371688b4e972414d6c09c9b9, type: 3}
+  musicVolume: 0.409
   sfxVolume: 1
   isMuted: 0
 --- !u!1 &541968637
@@ -1299,7 +1331,11 @@ MonoBehaviour:
   maxX: 10
   minY: -67.98
   maxY: -2
+  depthAffectsRarity: 1
+  depthRarityStart: 1.5
+  depthRarityFull: 14
   showGizmos: 1
+  gizmosOnlyWhenSelected: 0
 --- !u!1 &800295555
 GameObject:
   m_ObjectHideFlags: 0
@@ -1400,6 +1436,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1289197750}
   - component: {fileID: 1289197749}
+  - component: {fileID: 1289197751}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -1429,9 +1466,7 @@ MonoBehaviour:
   shopPanel: {fileID: 0}
   mainMenuPanel: {fileID: 0}
   settingsPanel: {fileID: 0}
-  gameFonts:
-  - {fileID: 11400000, guid: c7731ca3bb9f967469a82b299283e1e1, type: 2}
-  currentFontIndex: 0
+  uiFont: {fileID: 11400000, guid: 28298d170cd38754a80a54d4aaedd23b, type: 2}
   money: 0
   isGameActive: 1
   isPaused: 0
@@ -1451,6 +1486,68 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1289197751
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1289197748}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2cc57322e4c567548886c8acd54f8cab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::QuestManager
+  quests:
+  - id: catch_5_fish
+    titleTR: "5 bal\u0131k yakala"
+    titleEN: Catch 5 fish
+    descTR: "5 bal\u0131k yakala ve \xF6d\xFCl\xFC al."
+    descEN: Catch 5 fish and claim the reward.
+    type: 0
+    target: 5
+    parameter: 0
+    rewardMoney: 120
+  - id: earn_200
+    titleTR: 200$ kazan
+    titleEN: Earn $200
+    descTR: "Bal\u0131k tutarak toplam 200$ kazan."
+    descEN: Earn a total of $200 from fishing.
+    type: 1
+    target: 200
+    parameter: 0
+    rewardMoney: 100
+  - id: catch_hard_fish
+    titleTR: "Zor bal\u0131k yakala"
+    titleEN: Catch a hard fish
+    descTR: "Zorluk seviyesi en az 4 olan 1 bal\u0131k yakala."
+    descEN: Catch 1 fish with difficulty at least 4.
+    type: 2
+    target: 1
+    parameter: 4
+    rewardMoney: 150
+  - id: buy_1_upgrade
+    titleTR: "1 geli\u015Ftirme sat\u0131n al"
+    titleEN: Buy 1 upgrade
+    descTR: "Market'ten 1 geli\u015Ftirme sat\u0131n al."
+    descEN: Buy 1 upgrade from the shop.
+    type: 3
+    target: 1
+    parameter: 0
+    rewardMoney: 75
+  - id: reach_depth_10
+    titleTR: "10m derinli\u011Fe in"
+    titleEN: Reach 10m depth
+    descTR: "Olta ile en az 10 metre derinli\u011Fe in."
+    descEN: Reach at least 10 meters depth with your hook.
+    type: 4
+    target: 10
+    parameter: 0
+    rewardMoney: 125
+  sequentialUnlock: 1
+  initialUnlockedCount: 5
+  unlockOnClaim: 1
+  populateDefaultQuestsInEditor: 1
 --- !u!1 &1654673224
 GameObject:
   m_ObjectHideFlags: 0

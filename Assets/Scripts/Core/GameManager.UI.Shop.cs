@@ -324,8 +324,15 @@ public partial class GameManager
             nameObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI nameTxt = nameObj.AddComponent<TextMeshProUGUI>();
             int level = UpgradeManager.instance.GetLevel(upg.type);
-            string upgTitle = LocalizationManager.T($"upgrade.{upg.type}.name", upg.turkishName);
-            string upgDesc = LocalizationManager.T($"upgrade.{upg.type}.desc", upg.description);
+
+            bool isEnglish = Settings != null && Settings.Language == GameLanguage.English;
+            string nameFallback = isEnglish ? upg.name : (!string.IsNullOrEmpty(upg.turkishName) ? upg.turkishName : upg.name);
+            string descFallback = isEnglish
+                ? upg.description
+                : (!string.IsNullOrEmpty(upg.turkishDescription) ? upg.turkishDescription : upg.description);
+
+            string upgTitle = T($"upgrade.{upg.type}.name", nameFallback);
+            string upgDesc = T($"upgrade.{upg.type}.desc", descFallback);
             nameTxt.text = $"<color=#FFD700>{upgTitle}</color>\n<size=10><color=#AAA>{upgDesc}</color></size>";
             nameTxt.fontSize = 13;
             nameTxt.alignment = TextAlignmentOptions.Left;
@@ -447,7 +454,7 @@ public partial class GameManager
             hLayout.spacing = 10;
             hLayout.padding = new RectOffset(15, 15, 8, 8);
             hLayout.childAlignment = TextAnchor.MiddleLeft;
-            hLayout.childControlWidth = false;
+            hLayout.childControlWidth = true;
             hLayout.childControlHeight = true;
             hLayout.childForceExpandWidth = false;
             hLayout.childForceExpandHeight = true;
@@ -462,17 +469,18 @@ public partial class GameManager
             else itemBg.color = new Color(0.08f, 0.1f, 0.15f, 0.95f); // Common
 
             LayoutElement itemLayout = item.AddComponent<LayoutElement>();
-            itemLayout.minHeight = 40;
-            itemLayout.preferredHeight = 40;
+            // Must fit: icon (>=35) + vertical padding (16) => >=51.
+            itemLayout.minHeight = 56;
+            itemLayout.preferredHeight = 56;
 
             // Icon
             GameObject iconObj = new GameObject("Icon");
             iconObj.transform.SetParent(item.transform, false);
             LayoutElement iconLayout = iconObj.AddComponent<LayoutElement>();
-            iconLayout.minWidth = 35;
-            iconLayout.preferredWidth = 35;
-            iconLayout.minHeight = 35;
-            iconLayout.preferredHeight = 35;
+            iconLayout.minWidth = 40;
+            iconLayout.preferredWidth = 40;
+            iconLayout.minHeight = 40;
+            iconLayout.preferredHeight = 40;
 
             Image iconImg = iconObj.AddComponent<Image>();
             iconImg.sprite = fish.sprite != null ? fish.sprite : FishSpawner.GetDefaultSprite();
@@ -488,8 +496,9 @@ public partial class GameManager
             nameTxt.alignment = TextAlignmentOptions.Left;
             nameTxt.color = Color.white;
             LayoutElement nameLayout = nameObj.AddComponent<LayoutElement>();
-            nameLayout.minWidth = 120;
-            nameLayout.preferredWidth = 120;
+            nameLayout.minWidth = 140;
+            nameLayout.preferredWidth = 0;
+            nameLayout.flexibleWidth = 1;
 
             // Nadirlik
             GameObject rarityObj = new GameObject("Rarity");
@@ -520,12 +529,23 @@ public partial class GameManager
             GameObject priceObj = new GameObject("Price");
             priceObj.transform.SetParent(item.transform, false);
             TextMeshProUGUI priceTxt = priceObj.AddComponent<TextMeshProUGUI>();
-            priceTxt.text = string.Format(T("shop.priceRichFmt", "<color=#90EE90>${0}</color>"), fish.score);
+
+            int basePrice = Mathf.Max(0, fish.score);
+            int sellPrice = Mathf.RoundToInt(basePrice * UpgradeManager.BASE_FISH_SELL_MULTIPLIER);
+            if (UpgradeManager.instance != null)
+            {
+                float bonusPercent = Mathf.Max(0f, UpgradeManager.instance.GetValue(UpgradeType.StorageCapacity));
+                sellPrice = Mathf.RoundToInt(sellPrice * (1f + (bonusPercent / 100f)));
+            }
+
+            priceTxt.text = string.Format(T("shop.priceRichFmt", "<color=#90EE90>${0}</color>"), sellPrice);
             priceTxt.fontSize = 14;
             priceTxt.fontStyle = FontStyles.Bold;
             priceTxt.alignment = TextAlignmentOptions.Right;
             LayoutElement priceLayout = priceObj.AddComponent<LayoutElement>();
-            priceLayout.flexibleWidth = 1;
+            priceLayout.minWidth = 110;
+            priceLayout.preferredWidth = 130;
+            priceLayout.flexibleWidth = 0;
         }
 
         // Alt bilgi

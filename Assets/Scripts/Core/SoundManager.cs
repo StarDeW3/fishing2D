@@ -9,6 +9,10 @@ public class SoundManager : MonoBehaviour
     public AudioSource musicSource;
     public AudioSource sfxSource; // Şablon olarak kullanılır
 
+    [Header("Loop SFX Sources")]
+    public AudioSource reelLoopSource;
+    public AudioSource engineLoopSource;
+
     [Header("Clips")]
     public AudioClip backgroundMusic;
     public AudioClip castSound;
@@ -27,6 +31,9 @@ public class SoundManager : MonoBehaviour
     private readonly List<AudioSource> sfxPool = new List<AudioSource>();
     private GameObject sfxPoolParent;
     private const int INITIAL_POOL_SIZE = 5;
+
+    private float reelLoopVolumeScale = 0.7f;
+    private float engineLoopVolumeScale = 0.7f;
 
     // Spike anlarında havuz büyüyebilir; uzun vadede sahneyi şişirmemek için idle kaynakları trim et.
     private const int MAX_POOL_SIZE = 32;
@@ -55,6 +62,52 @@ public class SoundManager : MonoBehaviour
         }
     }
 
+    private void AutoAssignClipsFromResourcesIfMissing()
+    {
+        // Only fills missing fields; never overwrites inspector assignments.
+        // Files are currently under Assets/Resources/ (no subfolder), so the load path is just the filename.
+
+        if (backgroundMusic == null)
+            backgroundMusic = Resources.Load<AudioClip>("lick_the_chorus");
+
+        if (castSound == null)
+            castSound = Resources.Load<AudioClip>("throw");
+
+        if (splashSound == null)
+            splashSound = Resources.Load<AudioClip>("splash");
+
+        if (reelSound == null)
+            reelSound = Resources.Load<AudioClip>("reeling");
+
+        if (catchSound == null)
+            catchSound = Resources.Load<AudioClip>("catch");
+
+        if (escapeSound == null)
+            escapeSound = Resources.Load<AudioClip>("escape");
+
+        if (boatEngineSound == null)
+            boatEngineSound = Resources.Load<AudioClip>("engine");
+    }
+
+    private void LogMissingClip(string fieldName, string resourcesPath)
+    {
+        Debug.LogWarning($"SoundManager: Missing clip for '{fieldName}'. Expected Resources path: '{resourcesPath}'.");
+    }
+
+    private void ValidateClipAssignments()
+    {
+        // Keep this noisy output out of release builds.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (backgroundMusic == null) LogMissingClip(nameof(backgroundMusic), "lick_the_chorus");
+        if (castSound == null) LogMissingClip(nameof(castSound), "throw");
+        if (splashSound == null) LogMissingClip(nameof(splashSound), "splash");
+        if (reelSound == null) LogMissingClip(nameof(reelSound), "reeling");
+        if (catchSound == null) LogMissingClip(nameof(catchSound), "catch");
+        if (escapeSound == null) LogMissingClip(nameof(escapeSound), "escape");
+        if (boatEngineSound == null) LogMissingClip(nameof(boatEngineSound), "engine");
+#endif
+    }
+
     private void OnEnable()
     {
         TrySubscribeToSettings();
@@ -74,6 +127,8 @@ public class SoundManager : MonoBehaviour
             musicObj.transform.parent = transform;
             musicSource = musicObj.AddComponent<AudioSource>();
             musicSource.loop = true;
+            musicSource.playOnAwake = false;
+            musicSource.spatialBlend = 0f;
         }
 
         // SFX Kaynağı (Şablon)
@@ -83,6 +138,28 @@ public class SoundManager : MonoBehaviour
             sfxObj.transform.parent = transform;
             sfxSource = sfxObj.AddComponent<AudioSource>();
             sfxSource.playOnAwake = false;
+            sfxSource.spatialBlend = 0f;
+        }
+
+        // Loop SFX kaynakları
+        if (reelLoopSource == null)
+        {
+            GameObject reelObj = new GameObject("SFX_ReelLoop");
+            reelObj.transform.parent = transform;
+            reelLoopSource = reelObj.AddComponent<AudioSource>();
+            reelLoopSource.loop = true;
+            reelLoopSource.playOnAwake = false;
+            reelLoopSource.spatialBlend = 0f;
+        }
+
+        if (engineLoopSource == null)
+        {
+            GameObject engineObj = new GameObject("SFX_EngineLoop");
+            engineObj.transform.parent = transform;
+            engineLoopSource = engineObj.AddComponent<AudioSource>();
+            engineLoopSource.loop = true;
+            engineLoopSource.playOnAwake = false;
+            engineLoopSource.spatialBlend = 0f;
         }
 
         // Havuzu Başlat
@@ -143,6 +220,9 @@ public class SoundManager : MonoBehaviour
         TrySubscribeToSettings();
         if (SettingsManager.instance != null)
             ApplyFromSettings(SettingsManager.instance);
+
+        AutoAssignClipsFromResourcesIfMissing();
+        ValidateClipAssignments();
 
         if (backgroundMusic != null)
             PlayMusic(backgroundMusic);
@@ -258,6 +338,64 @@ public class SoundManager : MonoBehaviour
         PlaySFX(clips[index], volumeScale, pitchVariance);
     }
 
+    public void SetReelLoop(bool playing, float volumeScale = 0.7f, float pitch = 1f)
+    {
+        if (reelLoopSource == null)
+            return;
+
+        reelLoopVolumeScale = Mathf.Clamp01(volumeScale);
+
+        // FishingMiniGame may request the loop before Start() runs; ensure clips are available.
+        if (playing && reelSound == null)
+            AutoAssignClipsFromResourcesIfMissing();
+
+        if (!playing || isMuted || reelSound == null)
+        {
+            if (reelLoopSource.isPlaying)
+                reelLoopSource.Stop();
+            reelLoopSource.clip = reelSound;
+            UpdateVolumes();
+            return;
+        }
+
+        reelLoopSource.pitch = Mathf.Clamp(pitch, 0.5f, 2f);
+        if (reelLoopSource.clip != reelSound)
+            reelLoopSource.clip = reelSound;
+
+        UpdateVolumes();
+        if (!reelLoopSource.isPlaying)
+            reelLoopSource.Play();
+    }
+
+    public void SetBoatEngineLoop(bool playing, float volumeScale = 0.7f, float pitch = 1f)
+    {
+        if (engineLoopSource == null)
+            return;
+
+        engineLoopVolumeScale = Mathf.Clamp01(volumeScale);
+
+        // BoatController may request the loop before Start() runs; ensure clips are available.
+        if (playing && boatEngineSound == null)
+            AutoAssignClipsFromResourcesIfMissing();
+
+        if (!playing || isMuted || boatEngineSound == null)
+        {
+            if (engineLoopSource.isPlaying)
+                engineLoopSource.Stop();
+            engineLoopSource.clip = boatEngineSound;
+            UpdateVolumes();
+            return;
+        }
+
+        engineLoopSource.pitch = Mathf.Clamp(pitch, 0.5f, 2f);
+        if (engineLoopSource.clip != boatEngineSound)
+            engineLoopSource.clip = boatEngineSound;
+
+        UpdateVolumes();
+        if (!engineLoopSource.isPlaying)
+            engineLoopSource.Play();
+    }
+
     public void StopMusic()
     {
         if (musicSource != null)
@@ -296,6 +434,18 @@ public class SoundManager : MonoBehaviour
         {
             musicSource.volume = isMuted ? 0f : musicVolume;
             musicSource.mute = isMuted;
+        }
+
+        if (reelLoopSource != null)
+        {
+            reelLoopSource.mute = isMuted;
+            reelLoopSource.volume = isMuted ? 0f : (sfxVolume * reelLoopVolumeScale);
+        }
+
+        if (engineLoopSource != null)
+        {
+            engineLoopSource.mute = isMuted;
+            engineLoopSource.volume = isMuted ? 0f : (sfxVolume * engineLoopVolumeScale);
         }
 
         // Çalan SFX'leri güncelle (Sadece mute durumu için, volume anlık değişmeyebilir)

@@ -1,5 +1,9 @@
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 [RequireComponent(typeof(Camera))]
 public class CameraFollow : MonoBehaviour
 {
@@ -25,6 +29,12 @@ public class CameraFollow : MonoBehaviour
     public bool enableLimits = true;
     public Vector2 minPosition = new Vector2(-50, -50); // Sınırlar genişletildi
     public Vector2 maxPosition = new Vector2(50, 20);
+
+    [Header("Debug")]
+    public bool showGizmos = true;
+
+    [Tooltip("Editor'de, yalnızca obje seçiliyken gizmo çiz.")]
+    public bool gizmosOnlyWhenSelected = false;
 
     // Shake değişkenleri
     private float shakeDuration = 0f;
@@ -173,6 +183,13 @@ public class CameraFollow : MonoBehaviour
 
     void OnDrawGizmos()
     {
+        if (!showGizmos) return;
+
+#if UNITY_EDITOR
+        if (gizmosOnlyWhenSelected && !Selection.Contains(gameObject))
+            return;
+#endif
+
         if (enableLimits)
         {
             Gizmos.color = Color.green;
@@ -180,6 +197,48 @@ public class CameraFollow : MonoBehaviour
             Vector3 center = new Vector3((minPosition.x + maxPosition.x) / 2, (minPosition.y + maxPosition.y) / 2, 0);
             Vector3 size = new Vector3(maxPosition.x - minPosition.x, maxPosition.y - minPosition.y, 0);
             Gizmos.DrawWireCube(center, size);
+
+#if UNITY_EDITOR
+            Handles.color = new Color(0.2f, 1f, 0.2f, 0.9f);
+            Handles.Label(center + Vector3.up * (size.y * 0.5f + 0.4f), "Camera Limits");
+#endif
+        }
+
+        // Current camera view (orthographic)
+        Camera c = null;
+        if (cam != null) c = cam;
+        else c = GetComponent<Camera>();
+
+        if (c != null && c.orthographic)
+        {
+            float halfH = c.orthographicSize;
+            float halfW = halfH * c.aspect;
+            Vector3 p = c.transform.position;
+            p.z = 0f;
+
+            Gizmos.color = new Color(0.2f, 0.9f, 1f, 0.55f);
+            Vector3 viewCenter = new Vector3(p.x, p.y, 0f);
+            Vector3 viewSize = new Vector3(halfW * 2f, halfH * 2f, 0f);
+            Gizmos.DrawWireCube(viewCenter, viewSize);
+
+    #if UNITY_EDITOR
+            Handles.color = new Color(0.2f, 0.9f, 1f, 0.9f);
+            Handles.Label(viewCenter + Vector3.up * (halfH + 0.35f), "Camera View");
+    #endif
+        }
+
+        if (target != null)
+        {
+            Gizmos.color = new Color(1f, 1f, 1f, 0.65f);
+            Gizmos.DrawLine(transform.position, new Vector3(target.position.x, target.position.y, transform.position.z));
+            Gizmos.DrawSphere(new Vector3(target.position.x, target.position.y, 0f), 0.12f);
+        }
+
+        if (target != null && secondaryTarget != null)
+        {
+            Gizmos.color = new Color(1f, 0f, 1f, 0.55f);
+            Gizmos.DrawLine(new Vector3(target.position.x, target.position.y, 0f), new Vector3(secondaryTarget.position.x, secondaryTarget.position.y, 0f));
+            Gizmos.DrawSphere(new Vector3(secondaryTarget.position.x, secondaryTarget.position.y, 0f), 0.12f);
         }
     }
 

@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 [RequireComponent(typeof(Rigidbody2D))]
 public class BoatController : MonoBehaviour
 {
@@ -39,6 +43,12 @@ public class BoatController : MonoBehaviour
     private int lastFacingSign = 1;
     private bool lastWasInWater = false;
     private float nextWaveManagerSearchTime = 0f;
+
+    [Header("Debug")]
+    public bool showGizmos = true;
+
+    [Tooltip("Editor'de, yalnızca obje seçiliyken gizmo çiz.")]
+    public bool gizmosOnlyWhenSelected = false;
 
     void Start()
     {
@@ -96,6 +106,9 @@ public class BoatController : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (rb == null)
+            rb = GetComponent<Rigidbody2D>();
+
         if (waveManager == null)
         {
             if (Time.time >= nextWaveManagerSearchTime)
@@ -110,6 +123,9 @@ public class BoatController : MonoBehaviour
                     Debug.LogError("WaveManager sahnede bulunamadi! Lutfen 'Water' objesine WaveManager scriptini eklediginden emin ol.");
                     waveManagerMissingLogged = true;
                 }
+
+                if (SoundManager.instance != null)
+                    SoundManager.instance.SetBoatEngineLoop(false);
                 return;
             }
         }
@@ -157,6 +173,19 @@ public class BoatController : MonoBehaviour
 
         lastWasInWater = isInWater;
 
+        // Boat engine loop SFX (only when moving in water)
+        if (SoundManager.instance != null)
+        {
+            bool wantsMove = canMove && Mathf.Abs(horizontalInput) > 0.01f;
+            float xSpeed = rb != null ? Mathf.Abs(rb.linearVelocity.x) : 0f;
+            float speed01 = Mathf.Clamp01(xSpeed / Mathf.Max(0.01f, moveSpeed));
+            bool playEngine = isInWater && wantsMove && speed01 > 0.05f;
+
+            float volume = Mathf.Lerp(0.2f, 0.85f, speed01);
+            float pitch = Mathf.Lerp(0.9f, 1.2f, speed01);
+            SoundManager.instance.SetBoatEngineLoop(playEngine, volume, pitch);
+        }
+
         // 3. Rotasyon (Dalgaya uyum sağlama)
         // Analitik türev kullanarak eğimi hesapla (Daha hassas ve performanslı)
         float slope = waveManager.GetWaveSlope(transform.position.x);
@@ -179,14 +208,32 @@ public class BoatController : MonoBehaviour
 
     void OnDrawGizmos()
     {
-        if (rb == null) rb = GetComponent<Rigidbody2D>();
+        if (!showGizmos) return;
+
+#if UNITY_EDITOR
+        if (gizmosOnlyWhenSelected && !Selection.Contains(gameObject))
+            return;
+#endif
+
+        Rigidbody2D rb2d = rb != null ? rb : GetComponent<Rigidbody2D>();
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, 0.5f);
 
         // Batma ofsetini göster
         Gizmos.color = Color.green;
-        Gizmos.DrawSphere(transform.position + Vector3.up * surfaceOffset, 0.2f);
+        Vector3 buoyancyPoint = transform.position + Vector3.up * surfaceOffset;
+        Gizmos.DrawSphere(buoyancyPoint, 0.2f);
+
+        // "Tam batma" eşiği (depthBeforeSubmerged) - buoyancyPoint'in altında
+        float depth = Mathf.Max(0f, depthBeforeSubmerged);
+        if (depth > 0.001f)
+        {
+            Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.55f);
+            Vector3 submergedPoint = buoyancyPoint + Vector3.down * depth;
+            Gizmos.DrawLine(buoyancyPoint, submergedPoint);
+            Gizmos.DrawSphere(submergedPoint, 0.1f);
+        }
 
         // Su seviyesi kontrol noktaları
         Gizmos.color = Color.red;
@@ -204,6 +251,28 @@ public class BoatController : MonoBehaviour
             Gizmos.color = Color.blue;
             Gizmos.DrawLine(transform.position, new Vector3(transform.position.x, waveHeight, 0));
             Gizmos.DrawSphere(new Vector3(transform.position.x, waveHeight, 0), 0.1f);
+
+            // Waterline at buoyancy point x
+            Gizmos.color = new Color(0.2f, 0.6f, 1f, 0.35f);
+            Gizmos.DrawLine(new Vector3(buoyancyPoint.x - 0.75f, waveHeight, 0f), new Vector3(buoyancyPoint.x + 0.75f, waveHeight, 0f));
         }
+
+        if (Application.isPlaying && rb2d != null)
+        {
+            Vector2 v = rb2d.linearVelocity;
+            if (v.sqrMagnitude > 0.001f)
+            {
+                Gizmos.color = new Color(1f, 0.5f, 0f, 0.9f);
+                Vector3 from = transform.position;
+                Vector3 to = from + new Vector3(v.x, v.y, 0f) * 0.25f;
+                Gizmos.DrawLine(from, to);
+                Gizmos.DrawSphere(to, 0.08f);
+            }
+        }
+
+#if UNITY_EDITOR
+        Handles.color = new Color(1f, 1f, 1f, 0.9f);
+        Handles.Label(transform.position + Vector3.up * 1.2f, "Boat");
+#endif
     }
 }

@@ -11,7 +11,6 @@ public partial class GameManager : MonoBehaviour
 
     private const string PREF_MONEY = "Money";
     private const string PREF_FIRST_START = "FirstStart";
-    private const string PREF_SELECTED_FONT = "SelectedFont";
     private const string PREF_PENDING_AUTOSTART = "PendingAutoStart";
 
     [System.Flags]
@@ -41,8 +40,7 @@ public partial class GameManager : MonoBehaviour
     public GameObject settingsPanel; // Ayarlar menüsü
 
     [Header("Font Ayarları")]
-    public List<TMP_FontAsset> gameFonts; // Inspector'dan atanacak fontlar
-    public int currentFontIndex = 0;
+    public TMP_FontAsset uiFont; // Inspector'dan atanacak tek font
 
     [Header("Oyun Durumu")]
     public int money = 0; // Para birimi
@@ -177,6 +175,13 @@ public partial class GameManager : MonoBehaviour
         tmp.alignment = alignment;
         tmp.fontStyle = fontStyle;
 
+        // Make UI labels resilient when switching fonts at runtime.
+        tmp.enableAutoSizing = true;
+        tmp.fontSizeMax = fontSize;
+        tmp.fontSizeMin = Mathf.Max(10f, fontSize * 0.6f);
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        tmp.overflowMode = TextOverflowModes.Ellipsis;
+
         StretchToFill(tmp.rectTransform);
         return tmp;
     }
@@ -231,10 +236,14 @@ public partial class GameManager : MonoBehaviour
 
         instance = this;
 
+        // If this GameManager accidentally survives scene reloads (e.g. because another component on the same
+        // GameObject called DontDestroyOnLoad), we must rebuild UI references after each load.
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+
         // Para Yükle
         money = PlayerPrefs.GetInt(PREF_MONEY, 0);
         isFirstStart = PlayerPrefs.GetInt(PREF_FIRST_START, 1) == 1;
-        currentFontIndex = PlayerPrefs.GetInt(PREF_SELECTED_FONT, 0);
 
         autoStartGameOnLoad = PlayerPrefs.GetInt(PREF_PENDING_AUTOSTART, 0) == 1;
         if (autoStartGameOnLoad)
@@ -250,6 +259,7 @@ public partial class GameManager : MonoBehaviour
         // That breaks New Game / scene reload (UI references get destroyed but GameManager doesn't re-Start).
         FindOrCreateManager<SettingsManager>("SettingsManager");
         FindOrCreateManager<LocalizationManager>("LocalizationManager");
+        FindOrCreateManager<SoundManager>("SoundManager");
 
         CreateUI();
         CreateMainMenu();
@@ -272,6 +282,12 @@ public partial class GameManager : MonoBehaviour
             gameObject.AddComponent<UIManager>();
         }
 
+        // QuestManager kontrolü (TAB görev paneli)
+        if (QuestManager.instance == null)
+        {
+            FindOrCreateManager<QuestManager>("QuestManager");
+        }
+
         if (autoStartGameOnLoad)
         {
             StartGame(false);
@@ -284,8 +300,46 @@ public partial class GameManager : MonoBehaviour
         }
     }
 
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // Only the active singleton should react.
+        if (instance != this) return;
+
+        // Scene reload destroys scene UI objects; cached references can become "missing".
+        cachedCanvasTransform = null;
+        dayNightCycle = null;
+        cachedFishSpawner = null;
+        cachedHook = null;
+        cachedWaveManager = null;
+        lastMinute = -1;
+
+        EnsureCoreUI();
+
+        // Keep menu/pause state consistent after reload.
+        if (!isGameActive)
+        {
+            if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+            SetPause(PauseSource.MainMenu, true);
+        }
+    }
+
+    private void EnsureCoreUI()
+    {
+        // Core HUD is created at runtime; if refs are missing (common after scene reload), rebuild it.
+        if (moneyText == null || timeText == null || depthText == null || feedbackText == null)
+            CreateUI();
+
+        if (mainMenuPanel == null)
+            CreateMainMenu();
+
+        // Some panels are created in Start(); if this GameManager persisted across reload, Start() won't rerun.
+        CreateShopUI();
+    }
+
     private void OnDestroy()
     {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+
         if (Settings != null)
             Settings.SettingsChanged -= HandleSettingsChanged;
 
@@ -487,11 +541,14 @@ public partial class GameManager : MonoBehaviour
     {
         PlayerPrefs.SetInt(PREF_MONEY, 0);
 
+        // Quest ilerlemesini de sıfırla (New Game)
+        QuestManager.ResetAllQuestProgressPrefs();
+
         // Upgrade seviyelerini sıfırla
         foreach (UpgradeType type in System.Enum.GetValues(typeof(UpgradeType)))
             PlayerPrefs.DeleteKey("Upgrade_" + type);
 
-        // Not: UI font seçimi ve istatistikler (TotalFishCaught/PlayTime) burada bilinçli olarak korunuyor.
+        // Not: İstatistikler (TotalFishCaught/PlayTime) burada bilinçli olarak korunuyor.
         // New Game = ilerleme sıfırlama; ayarlar/lifetime stats resetlemek istenirse buraya eklenebilir.
 
         PlayerPrefs.Save();
@@ -534,21 +591,7 @@ public partial class GameManager : MonoBehaviour
 
     void EnsureUIFontSetup()
     {
-        // Pixelify Sans'i TMP Settings üzerinden default font olarak kullanacağız.
-        // gameFonts listesinin 0. elemanı Pixelify SDF ise onu seçer, yoksa TMP default'a düşer.
-        if (gameFonts == null) gameFonts = new List<TMP_FontAsset>();
-
-        TMP_FontAsset selected = null;
-        if (gameFonts.Count > 0)
-        {
-            if (currentFontIndex < 0 || currentFontIndex >= gameFonts.Count)
-                currentFontIndex = 0;
-            selected = gameFonts[currentFontIndex];
-        }
-        else
-        {
-            selected = TMP_Settings.defaultFontAsset;
-        }
+        TMP_FontAsset selected = uiFont != null ? uiFont : TMP_Settings.defaultFontAsset;
 
         if (selected != null)
         {
@@ -568,39 +611,32 @@ public partial class GameManager : MonoBehaviour
             TMP_Settings.defaultFontAsset = selected;
         }
 
-        // Fallback listesini temizle (Pixelify görünümünü bozmasın)
+        // Keep a global fallback for missing glyphs (e.g., Turkish characters in fonts like Jersey15).
+        // Fallback fonts are only used when a glyph is missing, so they won't change the look otherwise.
         TMP_Settings.fallbackFontAssets = new List<TMP_FontAsset>();
+        TMP_FontAsset liberationFallback = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF - Fallback");
+        TMP_FontAsset liberation = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        if (liberationFallback != null) TMP_Settings.fallbackFontAssets.Add(liberationFallback);
+        else if (liberation != null) TMP_Settings.fallbackFontAssets.Add(liberation);
 
-        // Liste boşsa seçilmiş fontu ekle
-        if (gameFonts.Count == 0)
-        {
-            if (selected != null)
-            {
-                gameFonts.Add(selected);
-                currentFontIndex = 0;
-                PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
-                PlayerPrefs.Save();
-            }
-            return;
-        }
-
-        // Seçili font listede varsa indeksi ona çek
-        if (selected != null)
-        {
-            int idx = gameFonts.IndexOf(selected);
-            if (idx >= 0)
-            {
-                currentFontIndex = idx;
-                PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
-                PlayerPrefs.Save();
-            }
-        }
     }
 
     public void StartGame(bool newGame)
     {
         if (newGame)
         {
+            // Ensure no persistent overlay UI (DontDestroy managers) remains visible across reload.
+            if (QuestManager.instance != null)
+                QuestManager.instance.ForceClosePanel();
+
+            // New Game should land on the main menu after reload.
+            isGameActive = false;
+
+            // Clear pause state before reloading the scene (Time.timeScale is global).
+            pauseMask = PauseSource.None;
+            uiPauseRequests = 0;
+            ApplyPauseState();
+
             ResetProgressPrefs();
             money = 0;
             // After New Game, stay on the main menu (do not auto-start).
@@ -614,6 +650,9 @@ public partial class GameManager : MonoBehaviour
 
         PlayerPrefs.SetInt(PREF_FIRST_START, 0);
         PlayerPrefs.Save();
+
+        // Ensure HUD exists (can be missing if the GameManager survived a reload and scene UI got destroyed).
+        EnsureCoreUI();
 
         isGameActive = true;
 
@@ -816,6 +855,9 @@ public partial class GameManager : MonoBehaviour
             depth = Mathf.Max(0f, waterLevel - cachedHook.transform.position.y);
         }
 
+        if (QuestManager.instance != null)
+            QuestManager.instance.ReportDepth(depth);
+
         float rounded = Mathf.Round(depth * 10f) / 10f;
         if (Mathf.Abs(rounded - lastDepthDisplay) > 0.01f)
         {
@@ -929,16 +971,17 @@ public partial class GameManager : MonoBehaviour
 
     public void ApplyFontToAll()
     {
-        if (gameFonts == null || gameFonts.Count == 0) return;
-        if (currentFontIndex < 0 || currentFontIndex >= gameFonts.Count) currentFontIndex = 0;
-
-        TMP_FontAsset targetFont = gameFonts[currentFontIndex];
+        TMP_FontAsset targetFont = uiFont != null ? uiFont : TMP_Settings.defaultFontAsset;
         if (targetFont == null) return;
 
-        // Sahnedeki tüm TMP_Text bileşenlerini bul (TextMeshProUGUI + TextMeshPro)
-        TMP_Text[] allTexts = FindObjectsByType<TMP_Text>(FindObjectsSortMode.None);
+        // Include inactive UI too (e.g., Shop/Settings panels). Filter out assets/prefabs by only touching loaded scenes.
+        TMP_Text[] allTexts = Resources.FindObjectsOfTypeAll<TMP_Text>();
         foreach (var txt in allTexts)
         {
+            if (txt == null) continue;
+            var scene = txt.gameObject.scene;
+            if (!scene.IsValid() || !scene.isLoaded) continue;
+
             txt.font = targetFont;
             // Olası material override'larını da temizle (bazı objeler font değiştirse bile eski materyalle kalabiliyor)
             txt.fontSharedMaterial = targetFont.material;
@@ -948,10 +991,7 @@ public partial class GameManager : MonoBehaviour
 
     public void ApplyFont(GameObject root)
     {
-        if (gameFonts == null || gameFonts.Count == 0) return;
-        if (currentFontIndex < 0 || currentFontIndex >= gameFonts.Count) currentFontIndex = 0;
-
-        TMP_FontAsset targetFont = gameFonts[currentFontIndex];
+        TMP_FontAsset targetFont = uiFont != null ? uiFont : TMP_Settings.defaultFontAsset;
         if (targetFont == null) return;
 
         TMP_Text[] texts = root.GetComponentsInChildren<TMP_Text>(true);
@@ -961,21 +1001,6 @@ public partial class GameManager : MonoBehaviour
             txt.fontSharedMaterial = targetFont.material;
             txt.SetAllDirty(); // Mesh'i yenilemeye zorla
         }
-    }
-
-    public void ChangeFont(int direction)
-    {
-        if (gameFonts == null || gameFonts.Count == 0) return;
-
-        currentFontIndex += direction;
-        if (currentFontIndex >= gameFonts.Count) currentFontIndex = 0;
-        if (currentFontIndex < 0) currentFontIndex = gameFonts.Count - 1;
-
-        PlayerPrefs.SetInt(PREF_SELECTED_FONT, currentFontIndex);
-        PlayerPrefs.Save();
-
-        ApplyFontToAll();
-        UpdateSettingsUI(); // Eğer ayarlar açıksa güncelle
     }
 
 }

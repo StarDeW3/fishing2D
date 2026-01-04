@@ -1,6 +1,10 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 public class CloudManager : MonoBehaviour
 {
     [Header("Bulut Ayarları")]
@@ -8,6 +12,12 @@ public class CloudManager : MonoBehaviour
     public float spawnInterval = 5f;  // Kaç saniyede bir bulut çıksın
     public float moveSpeedMin = 0.5f;
     public float moveSpeedMax = 2f;
+
+    [Header("Debug")]
+    public bool showGizmos = true;
+
+    [Tooltip("Editor'de, yalnızca obje seçiliyken gizmo çiz.")]
+    public bool gizmosOnlyWhenSelected = false;
     public float spawnHeightMin = 0f; // Daha aşağıda başlasın
     public float spawnHeightMax = 3f; // Çok yukarı çıkmasın
 
@@ -128,6 +138,13 @@ public class CloudManager : MonoBehaviour
 
     void OnDrawGizmos()
     {
+        if (!showGizmos) return;
+
+#if UNITY_EDITOR
+        if (gizmosOnlyWhenSelected && !Selection.Contains(gameObject))
+            return;
+#endif
+
         Camera camera = cam != null ? cam : Camera.main;
         if (camera == null) return;
 
@@ -150,6 +167,16 @@ public class CloudManager : MonoBehaviour
         Gizmos.color = new Color(1, 1, 1, 0.3f);
         Gizmos.DrawLine(new Vector3(dynamicSpawnX, spawnHeightMin, 0), new Vector3(dynamicDestroyX, spawnHeightMin, 0));
         Gizmos.DrawLine(new Vector3(dynamicSpawnX, spawnHeightMax, 0), new Vector3(dynamicDestroyX, spawnHeightMax, 0));
+
+        // Range rectangle
+        Gizmos.DrawLine(new Vector3(dynamicSpawnX, spawnHeightMin, 0), new Vector3(dynamicSpawnX, spawnHeightMax, 0));
+        Gizmos.DrawLine(new Vector3(dynamicDestroyX, spawnHeightMin, 0), new Vector3(dynamicDestroyX, spawnHeightMax, 0));
+
+    #if UNITY_EDITOR
+        Handles.color = new Color(1f, 1f, 1f, 0.9f);
+        Handles.Label(new Vector3(dynamicSpawnX, spawnHeightMax, 0f), "Cloud Spawn");
+        Handles.Label(new Vector3(dynamicDestroyX, spawnHeightMax, 0f), "Cloud Destroy");
+    #endif
     }
 }
 

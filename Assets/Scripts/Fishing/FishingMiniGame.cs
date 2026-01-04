@@ -49,6 +49,8 @@ public class FishingMiniGame : MonoBehaviour
     private bool lastIsInside = false;
     private bool hasInsideState = false;
 
+    private bool reelLoopActive = false;
+
     // Callbackler
     private System.Action onWin;
     private System.Action onLose;
@@ -129,7 +131,8 @@ public class FishingMiniGame : MonoBehaviour
         // Mesafeye göre hızı ayarla (Uzaksa daha yavaş dolsun)
         float referenceDist = 8f;
         float factor = referenceDist / Mathf.Max(distance, 1f);
-        factor = Mathf.Clamp(factor, 0.5f, 1.5f); // Çok aşırı yavaşlamasın (0.2 -> 0.5)
+        // Long casts shouldn't make high-difficulty fish effectively impossible.
+        factor = Mathf.Clamp(factor, 0.7f, 1.5f);
 
         // Upgrade sisteminden hız al
         float baseReelSpeed = catchSpeed;
@@ -142,7 +145,7 @@ public class FishingMiniGame : MonoBehaviour
 
         // Difficulty makes reeling harder (slower) at higher difficulties.
         float difficultyT = Mathf.Clamp01((difficulty - 1f) / 4f);
-        actualCatchSpeed *= Mathf.Lerp(1f, 0.6f, difficultyT);
+        actualCatchSpeed *= Mathf.Lerp(1f, 0.75f, difficultyT);
 
         // Line Strength: outside penalty gets reduced (harder to "lose the fish")
         float strengthPct = 0f;
@@ -150,7 +153,7 @@ public class FishingMiniGame : MonoBehaviour
             strengthPct = Mathf.Clamp(UpgradeManager.instance.GetValue(UpgradeType.LineStrength), 0f, 75f);
         actualDrainSpeed = drainSpeed * (1f - (strengthPct / 100f));
         // Difficulty increases how punishing it is to miss the window.
-        actualDrainSpeed *= Mathf.Lerp(1.2f, 2.0f, difficultyT);
+        actualDrainSpeed *= Mathf.Lerp(1.15f, 1.6f, difficultyT);
 
         // Zorluğa göre yeşil alan boyutunu ayarla
         float baseSize = 150f;
@@ -159,8 +162,8 @@ public class FishingMiniGame : MonoBehaviour
             baseSize = UpgradeManager.instance.GetValue(UpgradeType.BarSize);
         }
 
-        float newSize = Mathf.Lerp(baseSize * 0.85f, baseSize * 0.30f, difficultyT);
-        newSize = Mathf.Max(45f, newSize);
+        float newSize = Mathf.Lerp(baseSize * 0.90f, baseSize * 0.40f, difficultyT);
+        newSize = Mathf.Max(55f, newSize);
         catchArea.sizeDelta = new Vector2(catchArea.sizeDelta.x, newSize);
         catchAreaSize = newSize;
 
@@ -208,6 +211,10 @@ public class FishingMiniGame : MonoBehaviour
         isPlaying = false;
         gamePanel.SetActive(false);
 
+        if (SoundManager.instance != null)
+            SoundManager.instance.SetReelLoop(false);
+        reelLoopActive = false;
+
         if (win)
         {
             onWin?.Invoke();
@@ -239,7 +246,7 @@ public class FishingMiniGame : MonoBehaviour
         float weatherMultiplier = 1f;
 
         // Balık hareketi
-        float speed = Time.deltaTime * (0.45f + (currentDifficulty * 0.28f)) * weatherMultiplier;
+        float speed = Time.deltaTime * (0.35f + (currentDifficulty * 0.18f)) * weatherMultiplier;
         fishPosition = Mathf.MoveTowards(fishPosition, fishTarget, speed);
 
         // Kenarlarda çok durmasın
@@ -261,25 +268,36 @@ public class FishingMiniGame : MonoBehaviour
             if (mouse != null && mouse.leftButton.isPressed) isPressing = true;
         }
 
-        // Daha tok fizik (Snappy) - Hız düşürüldü
+        // Press = up, release = down
         float acceleration = isPressing ? 8f : -6f;
         catchVelocity += acceleration * Time.deltaTime;
 
-        // Yüksek sürtünme (Kontrolü kolaylaştırır)
-        catchVelocity = Mathf.Lerp(catchVelocity, 0, Time.deltaTime * 5f);
+        // Damping: keep it responsive (avoid "sticking" after hitting edges)
+        catchVelocity = Mathf.Lerp(catchVelocity, 0f, Time.deltaTime * 3.5f);
 
-        catchVelocity = Mathf.Clamp(catchVelocity, -3f, 3f);
-        catchPosition += catchVelocity * Time.deltaTime;        // Bounce
-        if (catchPosition < 0)
+        catchVelocity = Mathf.Clamp(catchVelocity, -3.5f, 3.5f);
+        catchPosition += catchVelocity * Time.deltaTime;
+
+        // Clamp + only cancel velocity if it keeps pushing into the boundary.
+        if (catchPosition < 0f)
         {
-            catchPosition = 0;
-            catchVelocity = 0;
+            catchPosition = 0f;
+            if (catchVelocity < 0f) catchVelocity = 0f;
         }
-        if (catchPosition > 1)
+        else if (catchPosition > 1f)
         {
-            catchPosition = 1;
-            catchVelocity = 0;
+            catchPosition = 1f;
+            if (catchVelocity > 0f) catchVelocity = 0f;
         }
+
+        // If we're exactly on an edge and player tries to move away, give a tiny nudge
+        // so it feels instant instead of "stuck".
+        const float edgeEps = 0.0001f;
+        const float edgeNudgeVel = 0.8f;
+        if (catchPosition <= edgeEps && isPressing)
+            catchVelocity = Mathf.Max(catchVelocity, edgeNudgeVel);
+        else if (catchPosition >= 1f - edgeEps && !isPressing)
+            catchVelocity = Mathf.Min(catchVelocity, -edgeNudgeVel);
     }
 
     void CheckProgress()
@@ -289,6 +307,15 @@ public class FishingMiniGame : MonoBehaviour
         float maxCatch = catchPosition + (areaRatio / 2f);
 
         bool isInside = fishPosition >= minCatch && fishPosition <= maxCatch;
+
+        if (SoundManager.instance != null)
+        {
+            if (isInside != reelLoopActive)
+            {
+                reelLoopActive = isInside;
+                SoundManager.instance.SetReelLoop(reelLoopActive, 0.55f, 1f);
+            }
+        }
 
         if (isInside)
         {
@@ -301,6 +328,14 @@ public class FishingMiniGame : MonoBehaviour
         }
         else
         {
+            // Ensure it stops immediately if the fish escapes the catch window.
+            if (reelLoopActive)
+            {
+                reelLoopActive = false;
+                if (SoundManager.instance != null)
+                    SoundManager.instance.SetReelLoop(false);
+            }
+
             float drain = (actualDrainSpeed > 0f) ? actualDrainSpeed : drainSpeed;
 
             // Farther miss => stronger drain (still fair near the edge)
@@ -309,8 +344,8 @@ public class FishingMiniGame : MonoBehaviour
             else if (fishPosition > maxCatch) distOutside = fishPosition - maxCatch;
 
             // Harsher miss scaling: drifting far outside gets punished fast.
-            float miss01 = Mathf.Clamp01(distOutside / 0.35f);
-            drain *= 1f + (miss01 * 1.2f);
+            float miss01 = Mathf.Clamp01(distOutside / 0.45f);
+            drain *= 1f + (miss01 * 0.7f);
 
             currentProgress -= drain * Time.deltaTime;
             if (statusText != null && (!hasInsideState || lastIsInside != isInside))

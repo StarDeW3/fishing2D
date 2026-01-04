@@ -109,6 +109,10 @@
       "value": "Toplam Para: ${0}"
     },
     {
+      "key": "gameOver.restart",
+      "value": "YENİDEN"
+    },
+    {
       "key": "shop.title",
       "value": "MARKET"
     },
@@ -187,6 +191,30 @@
     {
       "key": "ui.stats.title",
       "value": "İSTATİSTİKLER"
+    },
+    {
+      "key": "ui.quests.title",
+      "value": "GÖREVLER"
+    },
+    {
+      "key": "ui.quests.hintTabClose",
+      "value": "Kapatmak için TAB"
+    },
+    {
+      "key": "ui.quests.empty",
+      "value": "Görev yok"
+    },
+    {
+      "key": "ui.quests.claim",
+      "value": "ÖDÜLÜ AL"
+    },
+    {
+      "key": "ui.quests.claimed",
+      "value": "ALINDI"
+    },
+    {
+      "key": "ui.quests.completedFmt",
+      "value": "Görev tamamlandı: {0}"
     },
     {
       "key": "ui.section.line",
@@ -282,7 +310,7 @@
     },
     {
       "key": "upgrade.CastDistance.desc",
-      "value": "Daha uzağa at"
+      "value": "Maksimum atış mesafesini artırır"
     },
     {
       "key": "upgrade.ReelSpeed.name",
@@ -290,15 +318,15 @@
     },
     {
       "key": "upgrade.ReelSpeed.desc",
-      "value": "Balığı daha hızlı çek"
+      "value": "Mini oyunda daha hızlı çekmeni sağlar"
     },
     {
       "key": "upgrade.BarSize.name",
-      "value": "Kanca Boyutu"
+      "value": "Yakalama Alanı"
     },
     {
       "key": "upgrade.BarSize.desc",
-      "value": "Daha kolay yakala"
+      "value": "Mini oyundaki yeşil alanı büyütür"
     },
     {
       "key": "upgrade.LineStrength.name",
@@ -306,7 +334,7 @@
     },
     {
       "key": "upgrade.LineStrength.desc",
-      "value": "Misina kopma şansı azalır"
+      "value": "Mini oyunda kaçırmayı ve misina kopmasını azaltır"
     },
     {
       "key": "upgrade.BoatSpeed.name",
@@ -314,7 +342,7 @@
     },
     {
       "key": "upgrade.BoatSpeed.desc",
-      "value": "Daha hızlı git"
+      "value": "Daha hızlı hareket etmeni sağlar"
     },
     {
       "key": "upgrade.BoatStability.name",
@@ -322,7 +350,7 @@
     },
     {
       "key": "upgrade.BoatStability.desc",
-      "value": "Dalgalarda daha az salla"
+      "value": "Dalgalarda daha az sallanırsın"
     },
     {
       "key": "upgrade.FishRadar.name",
@@ -330,15 +358,15 @@
     },
     {
       "key": "upgrade.FishRadar.desc",
-      "value": "Balıkları gör"
+      "value": "Kancanın balıkları algılama menzilini artırır"
     },
     {
       "key": "upgrade.StorageCapacity.name",
-      "value": "Depolama"
+      "value": "Depo Bonusu"
     },
     {
       "key": "upgrade.StorageCapacity.desc",
-      "value": "Bonus para kazan"
+      "value": "Balık satarken daha fazla para kazanırsın"
     },
     {
       "key": "upgrade.Luck.name",

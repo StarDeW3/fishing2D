@@ -1,5 +1,9 @@
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 public class DayNightCycle : MonoBehaviour
 {
     [Header("Zaman Ayarları")]
@@ -31,6 +35,12 @@ public class DayNightCycle : MonoBehaviour
 
     [Header("Su Seviyesi")]
     public float waterSurfaceY = 0f; // Su yüzeyinin Y pozisyonu (WaveManager yoksa kullanılır)
+
+    [Header("Debug")]
+    public bool showGizmos = true;
+
+    [Tooltip("Editor'de, yalnızca obje seçiliyken gizmo çiz.")]
+    public bool gizmosOnlyWhenSelected = false;
 
     private SpriteRenderer sunRenderer;
     private SpriteRenderer moonRenderer;
@@ -185,6 +195,13 @@ public class DayNightCycle : MonoBehaviour
 
     void OnDrawGizmos()
     {
+        if (!showGizmos) return;
+
+#if UNITY_EDITOR
+        if (gizmosOnlyWhenSelected && !Selection.Contains(gameObject))
+            return;
+#endif
+
         // Editörde veya oyunda kamerayı baz al
         Camera cam = (Application.isPlaying && mainCamera != null) ? mainCamera : Camera.main;
         Vector3 cameraPos = transform.position;
@@ -248,5 +265,10 @@ public class DayNightCycle : MonoBehaviour
         Gizmos.color = Color.gray;
         Gizmos.DrawWireSphere(moonPos, 0.8f * currentZoom);
         Gizmos.DrawLine(orbitCenter, moonPos);
+
+    #if UNITY_EDITOR
+        Handles.color = new Color(1f, 1f, 1f, 0.9f);
+        Handles.Label(orbitCenter + Vector3.up * 0.5f, "Day/Night Orbit Center");
+    #endif
     }
 }

@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CircleCollider2D))]
 public class Hook : MonoBehaviour
@@ -26,10 +30,18 @@ public class Hook : MonoBehaviour
     private CircleCollider2D triggerCollider;
     private float baseTriggerRadius = 0.5f;
     private bool lastWasUnderwater = false;
+    private float lastSplashTime = -999f;
+    private const float SplashCooldown = 0.25f;
     private static FishingRod cachedRod;
     private float nextWaveManagerSearchTime = 0f;
 
     private float initialAnchorX;
+
+    // Cast-origin limit + line break
+    private Vector2 castOrigin;
+    private bool hasCastOrigin = false;
+    private float spawnedAtUnscaledTime = 0f;
+    private float lineTension = 0f;
 
     void Awake()
     {
@@ -47,6 +59,10 @@ public class Hook : MonoBehaviour
         if (col != null) col.isTrigger = true;
 
         initialAnchorX = transform.position.x;
+
+        castOrigin = rb != null ? rb.position : (Vector2)transform.position;
+        hasCastOrigin = true;
+        spawnedAtUnscaledTime = Time.unscaledTime;
     }
 
     void Start()
@@ -60,6 +76,12 @@ public class Hook : MonoBehaviour
             float radiusBonus = Mathf.Max(0f, UpgradeManager.instance.GetValue(UpgradeType.FishRadar));
             triggerCollider.radius = baseTriggerRadius + radiusBonus;
         }
+    }
+
+    public void SetCastOrigin(Vector2 origin)
+    {
+        castOrigin = origin;
+        hasCastOrigin = true;
     }
 
     void Update()
@@ -130,6 +152,12 @@ public class Hook : MonoBehaviour
             {
                 if (!lastWasUnderwater)
                 {
+                    if (SoundManager.instance != null && Time.time - lastSplashTime >= SplashCooldown)
+                    {
+                        lastSplashTime = Time.time;
+                        SoundManager.instance.PlaySFX(SoundManager.instance.splashSound, 0.9f, 0.08f);
+                    }
+
                     rb.linearDamping = 2f; // Su direnci
                     rb.gravityScale = 0.1f; // Yavaş batma (Kontrolü kolaylaştırmak için düşürdüm)
                 }
@@ -159,7 +187,104 @@ public class Hook : MonoBehaviour
             lastWasUnderwater = isUnderwater;
         }
 
+        ApplyCastRadiusLimitAndTension();
         ApplyHorizontalLimit();
+    }
+
+    private void ApplyCastRadiusLimitAndTension()
+    {
+        if (rb == null) return;
+        if (fishingRod == null) return;
+        if (!fishingRod.limitHookRadiusFromCastPoint) return;
+
+        float max = fishingRod.GetMaxDistanceFromCastPoint();
+        if (max <= 0.001f) return;
+
+        float elasticity = Mathf.Max(0f, fishingRod.lineElasticity);
+        float hardMax = max + elasticity;
+
+        Vector2 origin = hasCastOrigin ? castOrigin : rb.position;
+        Vector2 p = rb.position;
+        Vector2 d = p - origin;
+        float dist = d.magnitude;
+
+        // Smooth limit: allow a small elastic overshoot, then pull back with a spring.
+        if (dist > max)
+        {
+            Vector2 dir = d / Mathf.Max(0.0001f, dist);
+            float overshoot = dist - max;
+
+            // Spring force only within the elastic zone.
+            if (elasticity > 0.001f)
+            {
+                float springK = Mathf.Max(0f, fishingRod.lineSpringStrength);
+                float damping = Mathf.Max(0f, fishingRod.lineSpringDamping);
+
+                // Pull inward proportional to overshoot.
+                Vector2 spring = -dir * (overshoot * springK);
+
+                // Dampen only the outward component (prevents jitter when moving back in).
+                float outwardVel = Vector2.Dot(rb.linearVelocity, dir);
+                Vector2 damp = outwardVel > 0f ? (-dir * (outwardVel * damping)) : Vector2.zero;
+
+                rb.AddForce(spring + damp);
+            }
+
+            // Safety hard clamp if something pushes it way out.
+            if (dist > hardMax)
+            {
+                rb.position = origin + dir * hardMax;
+
+                Vector2 v = rb.linearVelocity;
+                float outward = Vector2.Dot(v, dir);
+                if (outward > 0f)
+                    v -= dir * outward;
+                rb.linearVelocity = v;
+            }
+        }
+
+        // Tension build: if player keeps trying to move outward while already at the limit.
+        if (!fishingRod.enableLineBreak) return;
+        if (Time.unscaledTime - spawnedAtUnscaledTime < fishingRod.GetLineBreakGraceTime())
+            return;
+
+        // Recompute after clamping
+        p = rb.position;
+        d = p - origin;
+        dist = d.magnitude;
+
+        float nearLimit = max > 0f ? Mathf.Clamp01(dist / max) : 0f;
+        bool atLimit = nearLimit >= 0.98f;
+
+        float pushOut = 0f;
+        if (atLimit && inputDir != Vector2.zero && dist > 0.0001f)
+        {
+            Vector2 outDir = d / dist;
+            pushOut = Mathf.Max(0f, Vector2.Dot(inputDir, outDir));
+        }
+
+        if (atLimit && pushOut > 0.1f)
+        {
+            // Build faster if we are deeper into the elastic zone.
+            float overshoot01 = 0f;
+            if (elasticity > 0.001f)
+                overshoot01 = Mathf.Clamp01((dist - max) / elasticity);
+            float factor = Mathf.Lerp(1f, 2f, overshoot01);
+
+            lineTension += pushOut * factor * fishingRod.GetLineBreakBuildRate() * Time.fixedDeltaTime;
+        }
+        else
+        {
+            lineTension -= fishingRod.GetLineBreakRecoverRate() * Time.fixedDeltaTime;
+        }
+
+        float threshold = fishingRod.GetLineBreakThreshold();
+        lineTension = Mathf.Clamp(lineTension, 0f, threshold);
+
+        if (lineTension >= threshold)
+        {
+            fishingRod.BreakLine();
+        }
     }
 
     private void ApplyHorizontalLimit()
@@ -168,7 +293,7 @@ public class Hook : MonoBehaviour
         if (fishingRod == null) return;
         if (!fishingRod.limitHookHorizontal) return;
 
-        float max = Mathf.Max(0f, fishingRod.hookMaxHorizontalOffset);
+        float max = fishingRod.GetMaxHorizontalOffset();
         if (max <= 0f) return;
 
         float anchorX = (fishingRod.rodTip != null) ? fishingRod.rodTip.position.x : initialAnchorX;
@@ -289,28 +414,90 @@ public class Hook : MonoBehaviour
     [Header("Debug")]
     public bool showGizmos = true;
 
+    [Tooltip("Editor'de, yalnızca obje seçiliyken gizmo çiz.")]
+    public bool gizmosOnlyWhenSelected = false;
+
     void OnDrawGizmos()
     {
         if (!showGizmos) return;
 
+#if UNITY_EDITOR
+        if (gizmosOnlyWhenSelected && !Selection.Contains(gameObject))
+            return;
+#endif
+
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, 0.2f);
 
-        if (fishingRod != null && fishingRod.limitHookHorizontal)
+        // Trigger radius (FishRadar vs.)
+        CircleCollider2D c = triggerCollider != null ? triggerCollider : GetComponent<CircleCollider2D>();
+        if (c != null)
         {
-            float max = Mathf.Max(0f, fishingRod.hookMaxHorizontalOffset);
-            if (max > 0f)
+            Gizmos.color = new Color(1f, 1f, 0.2f, 0.7f);
+            Vector3 center = transform.TransformPoint(c.offset);
+            Gizmos.DrawWireSphere(new Vector3(center.x, center.y, 0f), Mathf.Max(0f, c.radius));
+        }
+
+        if (fishingRod != null && fishingRod.rodTip != null)
+        {
+            Gizmos.color = new Color(1f, 0f, 1f, 0.65f);
+            Vector3 a = new Vector3(fishingRod.rodTip.position.x, fishingRod.rodTip.position.y, 0f);
+            Vector3 b = new Vector3(transform.position.x, transform.position.y, 0f);
+            Gizmos.DrawLine(a, b);
+        }
+
+        if (fishingRod != null)
+        {
+            if (fishingRod.limitHookHorizontal)
             {
-                float anchorX = (fishingRod.rodTip != null) ? fishingRod.rodTip.position.x : initialAnchorX;
-                Gizmos.color = new Color(0.2f, 1f, 1f, 0.9f);
+                float max = Mathf.Max(0f, fishingRod.GetMaxHorizontalOffset());
+                if (max > 0f)
+                {
+                    float anchorX = (fishingRod.rodTip != null) ? fishingRod.rodTip.position.x : initialAnchorX;
+                    Gizmos.color = new Color(0.2f, 1f, 1f, 0.9f);
 
-                Vector3 a = new Vector3(anchorX, transform.position.y, 0f);
-                Vector3 left = new Vector3(anchorX - max, transform.position.y, 0f);
-                Vector3 right = new Vector3(anchorX + max, transform.position.y, 0f);
+                    Vector3 a = new Vector3(anchorX, transform.position.y, 0f);
+                    Vector3 left = new Vector3(anchorX - max, transform.position.y, 0f);
+                    Vector3 right = new Vector3(anchorX + max, transform.position.y, 0f);
 
-                Gizmos.DrawLine(left, right);
-                Gizmos.DrawLine(a, transform.position);
+                    Gizmos.DrawLine(left, right);
+                    Gizmos.DrawLine(a, transform.position);
+                }
+            }
+
+            if (fishingRod.limitHookRadiusFromCastPoint)
+            {
+                float r = Mathf.Max(0f, fishingRod.GetMaxDistanceFromCastPoint());
+                if (r > 0.01f)
+                {
+                    Vector2 origin2 = hasCastOrigin
+                        ? castOrigin
+                        : (fishingRod.rodTip != null ? (Vector2)fishingRod.rodTip.position : (Vector2)transform.position);
+
+                    // Origin marker
+                    Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.9f);
+                    Gizmos.DrawSphere(new Vector3(origin2.x, origin2.y, 0f), 0.08f);
+
+                    // Soft limit ring
+                    Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.65f);
+                    Gizmos.DrawWireSphere(new Vector3(origin2.x, origin2.y, 0f), r);
+
+                    float e = Mathf.Max(0f, fishingRod.lineElasticity);
+                    if (e > 0.01f)
+                    {
+                        Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.25f);
+                        Gizmos.DrawWireSphere(new Vector3(origin2.x, origin2.y, 0f), r + e);
+                    }
+                }
             }
         }
+
+#if UNITY_EDITOR
+        if (Application.isPlaying)
+        {
+            Handles.color = new Color(1f, 1f, 1f, 0.9f);
+            Handles.Label(transform.position + Vector3.up * 0.45f, $"Hook\nTension: {lineTension:0.00}");
+        }
+#endif
     }
 }

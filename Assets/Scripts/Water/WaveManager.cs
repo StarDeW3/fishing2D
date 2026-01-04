@@ -1,5 +1,9 @@
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshRenderer))]
 public class WaveManager : MonoBehaviour
@@ -19,6 +23,18 @@ public class WaveManager : MonoBehaviour
     public float detailAmplitude = 0.2f;
     public float detailLength = 1f;
     public float detailSpeed = 2f;
+
+    [Header("Debug")]
+    public bool showGizmos = true;
+
+    [Tooltip("Editor'de, yalnızca obje seçiliyken gizmo çiz.")]
+    public bool gizmosOnlyWhenSelected = false;
+
+    [Min(1f)]
+    public float gizmoHalfWidth = 50f;
+
+    [Min(0.05f)]
+    public float gizmoStep = 0.5f;
 
     [Header("Hava Durumu Etkisi")]
     public float weatherIntensity = 1f; // WeatherSystem tarafından güncellenir
@@ -312,10 +328,27 @@ public class WaveManager : MonoBehaviour
 
     void OnDrawGizmos()
     {
+        if (!showGizmos) return;
+
+    #if UNITY_EDITOR
+        if (gizmosOnlyWhenSelected && !Selection.Contains(gameObject))
+            return;
+    #endif
+
         Gizmos.color = Color.cyan;
-        float startX = transform.position.x - 50f; // Daha geniş alan
-        float endX = transform.position.x + 50f;
-        float step = 0.5f;
+
+        // Match the same center logic as the water mesh (camera-follow in play mode).
+        float centerX = transform.position.x;
+        Camera c = (Application.isPlaying ? Camera.main : null);
+        if (c != null) centerX = c.transform.position.x;
+
+        // Show surface according to water width (meshWidth). Fallback to gizmoHalfWidth if meshWidth is invalid.
+        float w = Mathf.Max(0f, meshWidth);
+        float halfWidth = (w > 0.01f) ? (w * 0.5f) : Mathf.Max(1f, gizmoHalfWidth);
+
+        float startX = centerX - halfWidth;
+        float endX = centerX + halfWidth;
+        float step = Mathf.Max(0.05f, gizmoStep);
 
         Vector3 previousPoint = new Vector3(startX, GetWaveHeightGizmo(startX), 0);
 
@@ -326,6 +359,43 @@ public class WaveManager : MonoBehaviour
             Gizmos.DrawLine(previousPoint, currentPoint);
             previousPoint = currentPoint;
         }
+
+        // Water body bounds: width (meshWidth) + depth (bottomDepth)
+        float baseY = transform.position.y + offset;
+        float yBottom = transform.position.y - Mathf.Max(0f, bottomDepth);
+
+        float waterWidth = Mathf.Max(0f, meshWidth);
+        if (waterWidth > 0.01f)
+        {
+            float half = waterWidth * 0.5f;
+            Vector3 bl = new Vector3(centerX - half, yBottom, 0f);
+            Vector3 br = new Vector3(centerX + half, yBottom, 0f);
+            Vector3 tl = new Vector3(centerX - half, baseY, 0f);
+            Vector3 tr = new Vector3(centerX + half, baseY, 0f);
+
+            Gizmos.color = new Color(0.2f, 0.9f, 1f, 0.25f);
+            Gizmos.DrawLine(bl, br);
+            Gizmos.DrawLine(tl, tr);
+            Gizmos.DrawLine(bl, tl);
+            Gizmos.DrawLine(br, tr);
+
+            // Depth indicator
+            Gizmos.color = new Color(0.2f, 0.9f, 1f, 0.45f);
+            Vector3 midTop = new Vector3(centerX, baseY, 0f);
+            Vector3 midBottom = new Vector3(centerX, yBottom, 0f);
+            Gizmos.DrawLine(midTop, midBottom);
+
+#if UNITY_EDITOR
+            Handles.color = new Color(0.2f, 0.9f, 1f, 0.9f);
+        Handles.Label(tr + Vector3.up * 0.25f, $"Water Width: {waterWidth:0.##}");
+            Handles.Label(midBottom + Vector3.down * 0.25f, $"Depth: {Mathf.Max(0f, bottomDepth):0.##}");
+#endif
+        }
+
+#if UNITY_EDITOR
+        Handles.color = new Color(0.2f, 1f, 1f, 0.9f);
+        Handles.Label(new Vector3(transform.position.x, transform.position.y + 1.2f, 0f), "Wave");
+#endif
     }
 
     // Gizmo için özel fonksiyon (Time.time yerine editör zamanı veya 0)
@@ -333,11 +403,13 @@ public class WaveManager : MonoBehaviour
     {
         float t = Application.isPlaying ? Time.time : 0f;
         float y = transform.position.y + offset;
-        y += amplitude * Mathf.Sin(x / length + t * speed);
+        float safeLength = Mathf.Max(0.0001f, length);
+        y += amplitude * Mathf.Sin(x / safeLength + t * speed);
         if (useDetailWaves)
         {
-            y += detailAmplitude * Mathf.Sin(x / detailLength + t * detailSpeed);
-            y += (detailAmplitude / 2f) * Mathf.Sin(x / (detailLength * 0.5f) + t * (detailSpeed * 1.5f));
+            float safeDetailLength = Mathf.Max(0.0001f, detailLength);
+            y += detailAmplitude * Mathf.Sin(x / safeDetailLength + t * detailSpeed);
+            y += (detailAmplitude / 2f) * Mathf.Sin(x / (safeDetailLength * 0.5f) + t * (detailSpeed * 1.5f));
         }
         return y;
     }

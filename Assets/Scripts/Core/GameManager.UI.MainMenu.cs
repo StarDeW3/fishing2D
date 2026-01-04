@@ -68,6 +68,13 @@ public partial class GameManager
         title.fontStyle = FontStyles.Bold;
         title.outlineWidth = 0.05f;
         title.outlineColor = new Color(0, 0.2f, 0.4f);
+
+        // Font değişince başlık taşmasın
+        title.enableAutoSizing = true;
+        title.fontSizeMax = 72;
+        title.fontSizeMin = 44;
+        title.textWrappingMode = TextWrappingModes.NoWrap;
+        title.overflowMode = TextOverflowModes.Overflow;
         RectTransform titleRect = title.rectTransform;
         titleRect.anchorMin = new Vector2(0, 1);
         titleRect.anchorMax = new Vector2(1, 1);
