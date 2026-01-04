@@ -10,6 +10,11 @@ public class CloudManager : MonoBehaviour
     public float moveSpeedMax = 2f;
     public float spawnHeightMin = 0f; // Daha aşağıda başlasın
     public float spawnHeightMax = 3f; // Çok yukarı çıkmasın
+
+    [Header("Parallax")]
+    [Range(0f, 1f)]
+    [Tooltip("0 = kamera hareketinden etkilenmez (dünya ile aynı), 1 = kamerayı tamamen takip eder (ekranda sabit gibi)")]
+    public float cameraFollow = 0.75f;
     // public float destroyX = 20f;      // Artık dinamik hesaplanıyor
     // public float spawnX = -20f;       // Artık dinamik hesaplanıyor
 
@@ -101,6 +106,7 @@ public class CloudManager : MonoBehaviour
         
         // Hız ve kamera referansını ayarla
         float speed = Random.Range(moveSpeedMin, moveSpeedMax);
+        cloudScript.SetCameraFollow(cameraFollow);
         cloudScript.Initialize(speed, cam);
         
         // Rastgele boyut
@@ -151,12 +157,15 @@ public class CloudManager : MonoBehaviour
 public class CloudMover : MonoBehaviour
 {
     public float speed;
+    [Range(0f, 1f)]
+    public float cameraFollow = 0.75f;
     private Camera cam;
     private Transform camTransform;
     private Transform selfTransform;
     private float cachedOrthoSize;
     private float cachedAspect;
     private float cachedHalfWidth;
+    private float lastCamX;
 
     void Awake()
     {
@@ -170,6 +179,9 @@ public class CloudMover : MonoBehaviour
         cam = camera;
         camTransform = camera != null ? camera.transform : null;
 
+        if (camTransform != null)
+            lastCamX = camTransform.position.x;
+
         if (cam != null)
         {
             cachedOrthoSize = cam.orthographicSize;
@@ -182,6 +194,17 @@ public class CloudMover : MonoBehaviour
     {
         if (selfTransform == null) selfTransform = transform;
         selfTransform.Translate(Vector3.right * speed * Time.deltaTime);
+
+        if (camTransform != null)
+        {
+            float camX = camTransform.position.x;
+            float camDeltaX = camX - lastCamX;
+
+            if (!Mathf.Approximately(camDeltaX, 0f))
+                selfTransform.position += new Vector3(camDeltaX * cameraFollow, 0f, 0f);
+
+            lastCamX = camX;
+        }
         
         if (cam != null && camTransform != null)
         {
@@ -199,5 +222,10 @@ public class CloudMover : MonoBehaviour
                 gameObject.SetActive(false);
             }
         }
+    }
+
+    public void SetCameraFollow(float follow)
+    {
+        cameraFollow = Mathf.Clamp01(follow);
     }
 }

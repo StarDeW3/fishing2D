@@ -182,6 +182,14 @@ public partial class GameManager
             txt.color = Color.white;
             txt.alignment = TextAlignmentOptions.Center;
             txt.fontStyle = FontStyles.Bold;
+            txt.textWrappingMode = TextWrappingModes.NoWrap;
+            txt.overflowMode = TextOverflowModes.Overflow;
+
+            RectTransform txtRect = txt.rectTransform;
+            txtRect.anchorMin = Vector2.zero;
+            txtRect.anchorMax = Vector2.one;
+            txtRect.offsetMin = new Vector2(10, 10);
+            txtRect.offsetMax = new Vector2(-10, -10);
 
             ApplyFont(pausePanel);
             pausePanel.SetActive(false);
@@ -269,7 +277,12 @@ public partial class GameManager
     {
         if (pausePanel == null) return;
         var t = pausePanel.transform.Find("PauseText")?.GetComponent<TextMeshProUGUI>();
-        if (t != null) t.text = T("pause.title", t.text);
+        if (t != null)
+        {
+            t.text = T("pause.title", t.text);
+            t.textWrappingMode = TextWrappingModes.NoWrap;
+            t.overflowMode = TextOverflowModes.Overflow;
+        }
     }
 
     private void UpdateGameOverLocalizedText()

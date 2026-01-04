@@ -62,7 +62,7 @@
     {"key":"ui.upgrade.levelFmt","value":"Sv.{0} | {1:F1}"},
     {"key":"ui.moneyAmountFmt","value":"${0}"},
     {"key":"ui.fishCountFmt","value":"x {0}"},
-    {"key":"ui.depthFmt","value":"Derinlik: {0:F1}m"},
+    {"key":"ui.depthFmt","value":"Derinlik: {0:0.0}m"},
     {"key":"ui.stats.fishFmt","value":"Balık: {0}"},
     {"key":"ui.stats.earningsFmt","value":"Kazanç: ${0}"},
     {"key":"ui.stats.playTimeFmt","value":"Oynama Süresi: {0}:{1:00}"},

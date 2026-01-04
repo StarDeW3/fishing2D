@@ -62,7 +62,7 @@
     {"key":"ui.upgrade.levelFmt","value":"Lv.{0} | {1:F1}"},
     {"key":"ui.moneyAmountFmt","value":"${0}"},
     {"key":"ui.fishCountFmt","value":"x {0}"},
-    {"key":"ui.depthFmt","value":"Depth: {0:F1}m"},
+    {"key":"ui.depthFmt","value":"Depth: {0:0.0}m"},
     {"key":"ui.stats.fishFmt","value":"Fish: {0}"},
     {"key":"ui.stats.earningsFmt","value":"Earnings: ${0}"},
     {"key":"ui.stats.playTimeFmt","value":"Play Time: {0}:{1:00}"},

@@ -173,7 +173,7 @@ public partial class GameManager
         contentRect.anchorMin = new Vector2(0.5f, 0.5f);
         contentRect.anchorMax = new Vector2(0.5f, 0.5f);
         contentRect.pivot = new Vector2(0.5f, 0.5f);
-        contentRect.sizeDelta = new Vector2(480, 580);
+        contentRect.sizeDelta = new Vector2(480, 620);
 
         Outline outline = content.AddComponent<Outline>();
         outline.effectColor = new Color(0.3f, 0.6f, 0.9f, 0.5f);
@@ -324,8 +324,8 @@ public partial class GameManager
         closeRect.anchorMin = new Vector2(0.5f, 0);
         closeRect.anchorMax = new Vector2(0.5f, 0);
         closeRect.pivot = new Vector2(0.5f, 0);
-        closeRect.anchoredPosition = new Vector2(0, 30);
-        closeRect.sizeDelta = new Vector2(150, 40);
+        closeRect.anchoredPosition = new Vector2(0, 10);
+        closeRect.sizeDelta = new Vector2(150, 36);
 
         GameObject closeTxtObj = new GameObject("Text");
         closeTxtObj.transform.SetParent(closeBtnObj.transform, false);

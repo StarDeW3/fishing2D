@@ -379,6 +379,7 @@ MonoBehaviour:
   moveSpeedMax: 2
   spawnHeightMin: 0
   spawnHeightMax: 3
+  cameraFollow: 0.75
 --- !u!114 &277034718
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1349,6 +1350,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   moneyText: {fileID: 0}
   timeText: {fileID: 0}
+  depthText: {fileID: 0}
   gameOverPanel: {fileID: 0}
   finalScoreText: {fileID: 0}
   feedbackText: {fileID: 0}

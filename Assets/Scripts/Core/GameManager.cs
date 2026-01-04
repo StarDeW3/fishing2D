@@ -596,9 +596,18 @@ public partial class GameManager : MonoBehaviour
         var kb = UnityEngine.InputSystem.Keyboard.current;
         if (kb != null)
         {
-            // Pause Kontrolü (P veya ESC tuşu)
-            if (kb.pKey.wasPressedThisFrame || kb.escapeKey.wasPressedThisFrame)
+            // ESC: Oyun içindeyken ana menüyü aç/kapat
+            if (kb.escapeKey.wasPressedThisFrame)
             {
+                HandleEscapeKey();
+            }
+            // P: Pause aç/kapat
+            else if (kb.pKey.wasPressedThisFrame)
+            {
+                // Ana menü açıksa pause açma.
+                if (mainMenuPanel != null && mainMenuPanel.activeSelf)
+                    return;
+
                 // Allow closing pause menu anytime, but only allow opening while game is active.
                 if ((pauseMask & PauseSource.PauseMenu) != 0 || isGameActive)
                     TogglePause();
@@ -607,6 +616,10 @@ public partial class GameManager : MonoBehaviour
             // Shop Kontrolü (B tuşu - Buy)
             if (kb.bKey.wasPressedThisFrame)
             {
+                // Ana menü açıksa shop açma.
+                if (mainMenuPanel != null && mainMenuPanel.activeSelf)
+                    return;
+
                 // Allow closing shop anytime, but only allow opening while game is active and not otherwise paused.
                 bool shopIsOpen = shopPanel != null && shopPanel.activeSelf;
                 if (shopIsOpen || (isGameActive && !isPaused))
@@ -614,7 +627,7 @@ public partial class GameManager : MonoBehaviour
             }
         }
 
-            UpdateDepthUI();
+        UpdateDepthUI();
 
         if (!isGameActive || isPaused) return;
 
@@ -643,6 +656,62 @@ public partial class GameManager : MonoBehaviour
                 lastMinute = m;
                 timeText.SetText("{0:00}:{1:00}", h, m);
             }
+        }
+    }
+
+    private void HandleEscapeKey()
+    {
+        // Öncelik: Ayarlar açıksa ESC ile geri dön (ayarları kapat).
+        if (settingsPanel != null && settingsPanel.activeSelf)
+        {
+            settingsPanel.SetActive(false);
+            SetPause(PauseSource.UIPanel, false);
+            return;
+        }
+
+        // Minigame oynanırken ESC ile ana menü açmak gameplay'i bozabilir.
+        if (FishingMiniGame.instance != null && FishingMiniGame.instance.IsPlaying)
+        {
+            // Minigame sırasında sadece pause menüyü kapatmaya izin ver.
+            if ((pauseMask & PauseSource.PauseMenu) != 0)
+                TogglePause();
+            return;
+        }
+
+        // Oyun içindeyken ana menüyü aç/kapat.
+        if (isGameActive)
+        {
+            ToggleMainMenuOverlay();
+            return;
+        }
+
+        // Oyun aktif değilse (başlangıç menüsü vs.) mevcut davranışı bozmayalım.
+    }
+
+    private void ToggleMainMenuOverlay()
+    {
+        if (mainMenuPanel == null) return;
+
+        bool show = !mainMenuPanel.activeSelf;
+
+        if (show)
+        {
+            // Diğer panelleri kapat
+            if (pausePanel != null) pausePanel.SetActive(false);
+            if (shopPanel != null) shopPanel.SetActive(false);
+
+            // Pause kaynaklarını temizle ve menüyü pause kaynağı olarak aç
+            SetPause(PauseSource.PauseMenu, false);
+            SetPause(PauseSource.Shop, false);
+
+            mainMenuPanel.SetActive(true);
+            SetPause(PauseSource.MainMenu, true);
+            UpdateMainMenuLocalizedText();
+        }
+        else
+        {
+            mainMenuPanel.SetActive(false);
+            SetPause(PauseSource.MainMenu, false);
         }
     }
 
@@ -690,7 +759,7 @@ public partial class GameManager : MonoBehaviour
         if (Mathf.Abs(rounded - lastDepthDisplay) > 0.01f)
         {
             lastDepthDisplay = rounded;
-            depthText.SetText(T("ui.depthFmt", "Derinlik: {0:F1}m"), rounded);
+            depthText.SetText(T("ui.depthFmt", "Derinlik: {0:0.0}m"), rounded);
         }
     }
 
